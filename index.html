@@ -301,15 +301,29 @@
     }
     .wiggling { animation: wiggle 0.7s ease-in-out; }
 
-    /* Morph (agreement) */
+    /* Morph (agreement) — 3 fast cycles ~70ms each */
     @keyframes morphFlash {
-      0%  { opacity: 1; }
-      25% { opacity: 0.2; }
-      50% { opacity: 1; }
-      75% { opacity: 0.2; }
-      100%{ opacity: 1; }
+      0%      { opacity: 1; }
+      16.67%  { opacity: 0.15; }
+      33.33%  { opacity: 1; }
+      50%     { opacity: 0.15; }
+      66.67%  { opacity: 1; }
+      83.33%  { opacity: 0.15; }
+      100%    { opacity: 1; }
     }
-    .morphing .block-text { animation: morphFlash 0.4s ease-in-out; }
+    .morphing .block-text { animation: morphFlash 210ms linear; }
+
+    /* Shake — invalid connection feedback */
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      15%     { transform: translateX(-8px); }
+      30%     { transform: translateX(8px); }
+      45%     { transform: translateX(-6px); }
+      60%     { transform: translateX(6px); }
+      75%     { transform: translateX(-3px); }
+      90%     { transform: translateX(3px); }
+    }
+    .shaking { animation: shake 0.4s ease-out; }
 
     .block-text {
       pointer-events: none;
@@ -912,16 +926,16 @@ const DEV_MODE = true;
 // ── WORD BANK ──
 const WORD_BANK = {
   nouns: [
-    { text: "I",      subtype: "pronoun",  agreement: "1st-singular" },
-    { text: "she",    subtype: "pronoun",  agreement: "3rd-singular" },
-    { text: "he",     subtype: "pronoun",  agreement: "3rd-singular" },
-    { text: "they",   subtype: "pronoun",  agreement: "3rd-plural" },
-    { text: "we",     subtype: "pronoun",  agreement: "1st-plural" },
-    { text: "the dog",   subtype: "noun",  agreement: "3rd-singular" },
-    { text: "the cat",   subtype: "noun",  agreement: "3rd-singular" },
-    { text: "the orca",  subtype: "noun",  agreement: "3rd-singular" },
-    { text: "the bird",  subtype: "noun",  agreement: "3rd-singular" },
-    { text: "the kids",  subtype: "noun",  agreement: "3rd-plural" },
+    { text: "I",     subtype: "pronoun", agreement: "1st-singular" },
+    { text: "she",   subtype: "pronoun", agreement: "3rd-singular" },
+    { text: "he",    subtype: "pronoun", agreement: "3rd-singular" },
+    { text: "they",  subtype: "pronoun", agreement: "3rd-plural" },
+    { text: "we",    subtype: "pronoun", agreement: "1st-plural" },
+    { text: "dog",   subtype: "noun",    agreement: "3rd-singular" },
+    { text: "cat",   subtype: "noun",    agreement: "3rd-singular" },
+    { text: "orca",  subtype: "noun",    agreement: "3rd-singular" },
+    { text: "bird",  subtype: "noun",    agreement: "3rd-singular" },
+    { text: "kids",  subtype: "noun",    agreement: "3rd-plural" },
   ],
   verbs: [
     { text: "run",   subtype: "verb-intransitive", forms: { "1st-singular":"run",  "3rd-singular":"runs",  "3rd-plural":"run",  "1st-plural":"run",  "default":"run"  } },
@@ -1011,26 +1025,44 @@ const JITTER_DECAY     = 0.88;
 const SPRING_DURATION  = 200;  // ms
 
 // ── MAGNETIC CONNECTION RULES ──
-// Returns: 'attract' | 'repel' | 'neutral' | 'self'
-// direction: 'left' = dragged is to the left of target, 'right' = dragged is to the right
-function canConnect(draggedType, targetType, direction) {
-  // Nouns/pronouns attract verbs to their right
-  if (isNounType(draggedType) && isVerbType(targetType) && direction === 'left') return 'attract';
-  // Verbs attract nouns to their left
-  if (isVerbType(draggedType) && isNounType(targetType) && direction === 'right') return 'attract';
-  // Articles attract nouns to their right
-  if (draggedType === 'article' && isNounType(targetType) && direction === 'left') return 'attract';
-  // Determiners attract nouns to their right
-  if (draggedType === 'determiner' && isNounType(targetType) && direction === 'left') return 'attract';
-  // Adjectives attract nouns to their right
-  if (draggedType === 'adjective' && isNounType(targetType) && direction === 'left') return 'attract';
-  // Nouns attract articles to their left
-  if (isNounType(draggedType) && (targetType === 'article' || targetType === 'determiner') && direction === 'right') return 'attract';
-  // Adverbs can go after verbs
-  if (draggedType === 'adverb' && isVerbType(targetType) && direction === 'right') return 'neutral';
-  // Verbs repel from their right (for intransitive) - handled at sentence level
-  // Default: neutral
-  return 'neutral';
+// Returns: { allowed: bool, strength: number }
+// strength: 3 = noun→verb, 2 = article/determiner/adj→noun, 1 = adj→adj / verb→adverb
+//
+// side convention (matches checkMagnetism):
+//   'right' → dragged is to the LEFT of target → result order: [dragged, target]
+//   'left'  → dragged is to the RIGHT of target → result order: [target, dragged]
+function canConnect(draggedType, targetType, side) {
+  let leftType, rightType;
+  if (side === 'right') {
+    leftType  = draggedType;
+    rightType = targetType;
+  } else {
+    leftType  = targetType;
+    rightType = draggedType;
+  }
+  return getConnectionResult(leftType, rightType);
+}
+
+// Pure adjacency check: is [leftType → rightType] grammatically valid?
+function getConnectionResult(leftType, rightType) {
+  // article / determiner → adjective or noun
+  if ((leftType === 'article' || leftType === 'determiner') &&
+      (rightType === 'adjective'))                          return { allowed: true, strength: 2 };
+  if ((leftType === 'article' || leftType === 'determiner') &&
+      isNounType(rightType))                               return { allowed: true, strength: 2 };
+
+  // adjective → adjective (stacking) or noun
+  if (leftType === 'adjective' && rightType === 'adjective') return { allowed: true, strength: 1 };
+  if (leftType === 'adjective' && isNounType(rightType))     return { allowed: true, strength: 2 };
+
+  // noun / pronoun → verb (subject–predicate)
+  if (isNounType(leftType) && isVerbType(rightType))         return { allowed: true, strength: 3 };
+
+  // verb → adverb
+  if (isVerbType(leftType) && rightType === 'adverb')        return { allowed: true, strength: 1 };
+
+  // everything else is hard-blocked
+  return { allowed: false, strength: 0 };
 }
 
 function isNounType(t) { return t === 'noun' || t === 'pronoun'; }
@@ -1051,6 +1083,7 @@ let state = {
   activeRailId: 0,
 
   dragging: null,    // { el, offsetX, offsetY, sourceRailId, sourceIndex, fromBank, wordData }
+  dragBlocked: false, // true when last magnetism check hit an allowed:false at snap distance
   physicsLoops: {},  // railId -> animFrame
 
   activeTab: 'nouns',
@@ -1514,6 +1547,7 @@ function startDragFromBank(e, wordData, sourceEl) {
     fromBank: true,
     sourceRailId: null,
   };
+  state.dragBlocked = false;
 }
 
 // ═══════════════════════════════════════════════════
@@ -1591,6 +1625,7 @@ function startDragFromRail(e, wordData, railId) {
         fromBank: false,
         sourceRailId: railId,
       };
+      state.dragBlocked = false;
 
       checkPeriodAvailability();
     }
@@ -1644,9 +1679,10 @@ function checkMagnetism(x, y, el) {
   const dragCX = x + (el.offsetWidth / 2);
   const dragCY = y + (el.offsetHeight / 2);
 
-  let closestRail = null;
-  let closestDist = Infinity;
-  let closestResult = null;
+  // Find best valid candidate (highest strength within range)
+  let bestRail   = null;
+  let bestResult = null;
+  let bestScore  = -Infinity; // strength / distance combo
 
   state.rails.forEach(rail => {
     if (rail.isLocked) return;
@@ -1656,18 +1692,19 @@ function checkMagnetism(x, y, el) {
     const railRect = railEl.getBoundingClientRect();
     const railMidY = railRect.top + railRect.height / 2;
 
-    // Is the block vertically near this rail?
     const vertDist = Math.abs(dragCY - railMidY);
     if (vertDist > 80) return;
 
-    // Check against each word on rail, or the empty rail itself
     if (rail.words.length === 0) {
       const railCX = railRect.left + railRect.width / 2;
       const dist = Math.sqrt(Math.pow(dragCX - railCX, 2) + Math.pow(dragCY - railMidY, 2));
-      if (dist < FIELD_DISTANCE && dist < closestDist) {
-        closestDist = dist;
-        closestRail = rail;
-        closestResult = { type: 'empty', dist };
+      if (dist < FIELD_DISTANCE) {
+        const score = 10 - dist / FIELD_DISTANCE; // empty rails always valid, score by proximity
+        if (score > bestScore) {
+          bestScore  = score;
+          bestRail   = rail;
+          bestResult = { type: 'empty', dist };
+        }
       }
     } else {
       rail.words.forEach(w => {
@@ -1677,39 +1714,49 @@ function checkMagnetism(x, y, el) {
         const tCX = tRect.left + tRect.width / 2;
         const tCY = tRect.top + tRect.height / 2;
         const dist = Math.sqrt(Math.pow(dragCX - tCX, 2) + Math.pow(dragCY - tCY, 2));
-        const side = dragCX < tCX ? 'right' : 'left'; // dragged is to left of target
+        // side: 'right' = dragged left of target (will insert before), 'left' = dragged right (insert after)
+        const side = dragCX < tCX ? 'right' : 'left';
 
-        if (dist < FIELD_DISTANCE && dist < closestDist) {
-          closestDist = dist;
-          closestRail = rail;
-          closestResult = { type: 'word', word: w, targetEl, dist, side };
+        const conn = canConnect(wordData.subtype, w.subtype, side);
+        // Scale field distance by strength so stronger bonds pull from farther away
+        const effectiveField = FIELD_DISTANCE * (conn.allowed ? (0.7 + conn.strength * 0.15) : 0.5);
+
+        if (dist < effectiveField) {
+          if (conn.allowed) {
+            const score = conn.strength - dist / effectiveField;
+            if (score > bestScore) {
+              bestScore  = score;
+              bestRail   = rail;
+              bestResult = { type: 'word', word: w, targetEl, dist, side, conn };
+            }
+          } else if (dist < SNAP_DISTANCE) {
+            // Invalid at snap distance — flag it and give repel glow
+            targetEl.classList.add('in-field-repel');
+            state.dragBlocked = true;
+          }
         }
       });
     }
   });
 
-  if (!closestRail || !closestResult) return;
+  if (!bestRail || !bestResult) return;
 
-  if (closestResult.type === 'empty') {
-    if (closestDist < SNAP_DISTANCE) {
-      snapToRail(closestRail, null);
+  if (bestResult.type === 'empty') {
+    if (bestResult.dist < SNAP_DISTANCE) {
+      state.dragBlocked = false;
+      snapToRail(bestRail, null);
     }
     return;
   }
 
-  const { targetEl, side, dist } = closestResult;
-  const rule = canConnect(wordData.subtype, closestResult.word.subtype, side);
-
-  if (rule === 'attract' || closestResult.type === 'empty') {
-    if (dist < FIELD_DISTANCE) {
-      targetEl.classList.add('in-field-attract');
-    }
-    if (dist < SNAP_DISTANCE) {
-      snapToRail(closestRail, closestResult);
-    }
-  } else if (rule === 'repel' && dist < REPEL_DISTANCE) {
-    targetEl.classList.add('in-field-repel');
-    guidedBounce(closestResult.targetEl);
+  // Valid connection found
+  const { targetEl, dist, conn } = bestResult;
+  state.dragBlocked = false;
+  if (dist < FIELD_DISTANCE) {
+    targetEl.classList.add('in-field-attract');
+  }
+  if (dist < SNAP_DISTANCE) {
+    snapToRail(bestRail, bestResult);
   }
 }
 
@@ -1801,9 +1848,6 @@ function snapToRail(rail, result) {
   // Animate into position
   layoutRailAnimated(rail, insertIndex);
 
-  // Update verb agreement
-  if (rail.subjectAgreement) updateVerbAgreement(rail);
-
   // Start jitter if circuit not complete, breathe if complete
   setTimeout(() => {
     if (rail.hasNoun && rail.hasVerb) {
@@ -1821,35 +1865,20 @@ function updateRailAnalysis(rail) {
   rail.hasNoun = rail.words.some(w => isNounType(w.subtype));
   rail.hasVerb = rail.words.some(w => isVerbType(w.subtype));
 
+  // Subject lock: first noun/pronoun in left-to-right order
   const subjectWord = rail.words.find(w => isNounType(w.subtype));
-  rail.subjectAgreement = subjectWord ? subjectWord.agreement : null;
+  const newAgreement = subjectWord ? subjectWord.agreement : null;
+
+  // Only trigger verb morph when subject agreement actually changes
+  if (newAgreement !== rail.subjectAgreement) {
+    rail.subjectAgreement = newAgreement;
+    if (newAgreement) updateVerbAgreement(rail);
+  }
 }
 
 function ensureEmptyRail() {
   const hasEmpty = state.rails.some(r => r.words.length === 0 && !r.isLocked);
   if (!hasEmpty) createRail();
-}
-
-// ═══════════════════════════════════════════════════
-//  GUIDED BOUNCE
-// ═══════════════════════════════════════════════════
-
-function guidedBounce(targetEl) {
-  if (!state.dragging) return;
-  const { el } = state.dragging;
-  const tRect = targetEl.getBoundingClientRect();
-
-  // Arc to the correct side
-  const destX = tRect.right + 20;
-  const destY = tRect.top;
-
-  el.style.transition = `left 0.5s var(--spring), top 0.5s ease-out`;
-  el.style.left = `${destX}px`;
-  el.style.top  = `${destY}px`;
-  setTimeout(() => { if (el) el.style.transition = ''; }, 500);
-
-  state.dragging = null;
-  document.getElementById('discardZone').classList.remove('active-target');
 }
 
 // ═══════════════════════════════════════════════════
@@ -1939,31 +1968,30 @@ function onDragEnd(e) {
   const overDiscard = pos.x > dRect.left && pos.x < dRect.right && pos.y > dRect.top && pos.y < dRect.bottom;
 
   if (overDiscard && !isPunct) {
-    // Discard — remove block, return word to bank
     el.style.transition = 'all 0.3s ease';
     el.style.transform = 'scale(0)';
     el.style.opacity = '0';
     setTimeout(() => el.remove(), 300);
     state.dragging = null;
+    state.dragBlocked = false;
     resetInactivityTimer();
     return;
   }
 
   if (isPunct) {
-    // Return punct bead to tray
     el.style.transition = 'all 0.3s ease';
     el.style.opacity = '0';
     setTimeout(() => el.remove(), 300);
     state.dragging = null;
+    state.dragBlocked = false;
     checkPeriodAvailability();
     return;
   }
 
-  // No snap happened — find nearest rail or create new one
+  // No magnetism snap happened — try fallback: nearest rail by Y
   const pos2 = { x: parseFloat(el.style.left), y: parseFloat(el.style.top) };
   const elCY = pos2.y + (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--block-h')) / 2);
 
-  // Find nearest unlocked rail by Y proximity
   let nearestRail = null;
   let nearestDist = Infinity;
   let nearestRailEl = null;
@@ -1982,36 +2010,59 @@ function onDragEnd(e) {
     }
   });
 
+  const wasBlocked = state.dragBlocked;
+  state.dragging = null;
+  state.dragBlocked = false;
+
   if (nearestRail && nearestDist < 100) {
-    // Snap to nearest rail
-    nearestRail.words.push(wordData);
-    updateRailAnalysis(nearestRail);
-    recalcRailScore(nearestRail);
+    // Check if appending to end of rail is valid
+    const canAppend = (() => {
+      if (nearestRail.words.length === 0) return true;
+      const lastWord = nearestRail.words[nearestRail.words.length - 1];
+      return getConnectionResult(lastWord.subtype, wordData.subtype).allowed;
+    })();
 
-    el.style.position = 'absolute';
-    el.style.zIndex = '10';
-    el.classList.remove('dragging');
-    el.classList.add('snapped');
-    nearestRailEl.appendChild(el);
+    if (canAppend) {
+      nearestRail.words.push(wordData);
+      updateRailAnalysis(nearestRail);
+      recalcRailScore(nearestRail);
 
-    el.addEventListener('mousedown', (ev) => { if (!nearestRail.isLocked) startDragFromRail(ev, wordData, nearestRail.id); });
-    el.addEventListener('touchstart', (ev) => { if (!nearestRail.isLocked) startDragFromRail(ev, wordData, nearestRail.id); }, { passive: false });
+      el.style.position = 'absolute';
+      el.style.zIndex = '10';
+      el.classList.remove('dragging');
+      el.classList.add('snapped');
+      nearestRailEl.appendChild(el);
 
-    layoutRailAnimated(nearestRail, nearestRail.words.length - 1);
-    if (nearestRail.subjectAgreement) updateVerbAgreement(nearestRail);
-    if (nearestRail.hasNoun && nearestRail.hasVerb) {
-      setTimeout(() => startJitter(nearestRail.id), SPRING_DURATION + 50);
-      checkPeriodAvailability();
+      el.addEventListener('mousedown', (ev) => { if (!nearestRail.isLocked) startDragFromRail(ev, wordData, nearestRail.id); });
+      el.addEventListener('touchstart', (ev) => { if (!nearestRail.isLocked) startDragFromRail(ev, wordData, nearestRail.id); }, { passive: false });
+
+      layoutRailAnimated(nearestRail, nearestRail.words.length - 1);
+      if (nearestRail.hasNoun && nearestRail.hasVerb) {
+        setTimeout(() => startJitter(nearestRail.id), SPRING_DURATION + 50);
+        checkPeriodAvailability();
+      }
+      ensureEmptyRail();
+      resetInactivityTimer();
+      return;
     }
+  }
+
+  // Return to bank — shake first if the drop was at a blocked position
+  if (wasBlocked) {
+    el.classList.add('shaking');
+    setTimeout(() => {
+      el.style.transition = 'all 0.4s ease';
+      el.style.opacity = '0';
+      el.style.transform = 'scale(0.8)';
+      setTimeout(() => el.remove(), 400);
+    }, 400);
   } else {
-    // Return to bank (float back and disappear)
     el.style.transition = 'all 0.4s ease';
     el.style.opacity = '0';
     el.style.transform = 'scale(0.8)';
     setTimeout(() => el.remove(), 400);
   }
 
-  state.dragging = null;
   ensureEmptyRail();
   resetInactivityTimer();
 }
