@@ -1019,10 +1019,16 @@ const SCORE_VALUES = {
 // ── PHYSICS ──
 const SNAP_DISTANCE    = 90;   // px — event horizon
 const FIELD_DISTANCE   = 160;  // px — glow zone
-const REPEL_DISTANCE   = 80;   // px — repulsion zone
+const REPEL_DISTANCE   = 80;   // px — repulsion zone (visual only)
 const JITTER_START     = 2.2;
 const JITTER_DECAY     = 0.88;
 const SPRING_DURATION  = 200;  // ms
+
+// Field-distance scaling constants (tuned so stronger bonds feel more magnetic)
+const FIELD_BASE       = 0.7;  // minimum field multiplier for valid connections
+const FIELD_STRENGTH_SCALE = 0.15; // added per strength point
+const FIELD_BLOCKED    = 0.5;  // reduced field radius for blocked connections (repel glow only)
+const EMPTY_RAIL_SCORE = 10;   // base score for empty-rail candidates (always valid, beats weak bonds)
 
 // ── MAGNETIC CONNECTION RULES ──
 // Returns: { allowed: bool, strength: number }
@@ -1679,6 +1685,9 @@ function checkMagnetism(x, y, el) {
   const dragCX = x + (el.offsetWidth / 2);
   const dragCY = y + (el.offsetHeight / 2);
 
+  // Reset blocked flag each tick — will be re-set if still near a blocked target
+  state.dragBlocked = false;
+
   // Find best valid candidate (highest strength within range)
   let bestRail   = null;
   let bestResult = null;
@@ -1699,7 +1708,7 @@ function checkMagnetism(x, y, el) {
       const railCX = railRect.left + railRect.width / 2;
       const dist = Math.sqrt(Math.pow(dragCX - railCX, 2) + Math.pow(dragCY - railMidY, 2));
       if (dist < FIELD_DISTANCE) {
-        const score = 10 - dist / FIELD_DISTANCE; // empty rails always valid, score by proximity
+        const score = EMPTY_RAIL_SCORE - dist / FIELD_DISTANCE; // always valid, ranked by proximity
         if (score > bestScore) {
           bestScore  = score;
           bestRail   = rail;
@@ -1718,8 +1727,9 @@ function checkMagnetism(x, y, el) {
         const side = dragCX < tCX ? 'right' : 'left';
 
         const conn = canConnect(wordData.subtype, w.subtype, side);
-        // Scale field distance by strength so stronger bonds pull from farther away
-        const effectiveField = FIELD_DISTANCE * (conn.allowed ? (0.7 + conn.strength * 0.15) : 0.5);
+        // Scale field distance by strength so stronger bonds feel more magnetic
+        const effectiveField = FIELD_DISTANCE *
+          (conn.allowed ? (FIELD_BASE + conn.strength * FIELD_STRENGTH_SCALE) : FIELD_BLOCKED);
 
         if (dist < effectiveField) {
           if (conn.allowed) {
@@ -1743,7 +1753,6 @@ function checkMagnetism(x, y, el) {
 
   if (bestResult.type === 'empty') {
     if (bestResult.dist < SNAP_DISTANCE) {
-      state.dragBlocked = false;
       snapToRail(bestRail, null);
     }
     return;
@@ -1751,7 +1760,6 @@ function checkMagnetism(x, y, el) {
 
   // Valid connection found
   const { targetEl, dist, conn } = bestResult;
-  state.dragBlocked = false;
   if (dist < FIELD_DISTANCE) {
     targetEl.classList.add('in-field-attract');
   }
