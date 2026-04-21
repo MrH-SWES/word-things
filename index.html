@@ -159,6 +159,25 @@
       padding: 3px 8px;
       border-radius: 4px;
       text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+
+    .dev-badge:hover {
+      background: rgba(255,200,0,0.25);
+      border-color: rgba(255,200,0,0.5);
+    }
+
+    .dev-badge.dev-off {
+      background: rgba(255,255,255,0.04);
+      border-color: rgba(255,255,255,0.08);
+      color: var(--text-gray);
+      opacity: 0.5;
+    }
+
+    .dev-badge.dev-off:hover {
+      opacity: 0.85;
     }
 
     /* ── MAIN LAYOUT ── */
@@ -599,6 +618,7 @@
 
     /* Tab color indicators */
     .bank-tab[data-type="nouns"]::after        { background: var(--noun); }
+    .bank-tab[data-type="pronouns"]::after     { background: var(--noun); }
     .bank-tab[data-type="verbs"]::after        { background: var(--verb); }
     .bank-tab[data-type="adjectives"]::after   { background: var(--adjective); }
     .bank-tab[data-type="adverbs"]::after      { background: var(--adverb); }
@@ -872,7 +892,7 @@
       <div class="xp-bar-fill" id="xpFill" style="width: 0%"></div>
     </div>
   </div>
-  <div id="devBadge" class="dev-badge">Dev Mode</div>
+  <div id="devBadge" class="dev-badge" onclick="toggleDevMode()" title="Toggle Dev Mode">Dev Mode</div>
 </header>
 
 <div class="main-area">
@@ -921,38 +941,24 @@
 //  CONFIG
 // ═══════════════════════════════════════════════════
 
-const DEV_MODE = true;
+let DEV_MODE = localStorage.getItem('word-things-dev') === 'true';
 
 // ── WORD BANK ──
 const WORD_BANK = {
-  nouns: [
-    { text: "I",     subtype: "pronoun", agreement: "1st-singular" },
-    { text: "she",   subtype: "pronoun", agreement: "3rd-singular" },
-    { text: "he",    subtype: "pronoun", agreement: "3rd-singular" },
-    { text: "they",  subtype: "pronoun", agreement: "3rd-plural" },
-    { text: "we",    subtype: "pronoun", agreement: "1st-plural" },
-    { text: "dog",   subtype: "noun",    agreement: "3rd-singular" },
-    { text: "cat",   subtype: "noun",    agreement: "3rd-singular" },
-    { text: "orca",  subtype: "noun",    agreement: "3rd-singular" },
-    { text: "bird",  subtype: "noun",    agreement: "3rd-singular" },
-    { text: "kids",  subtype: "noun",    agreement: "3rd-plural" },
-  ],
-  verbs: [
-    { text: "run",   subtype: "verb-intransitive", forms: { "1st-singular":"run",  "3rd-singular":"runs",  "3rd-plural":"run",  "1st-plural":"run",  "default":"run"  } },
-    { text: "swim",  subtype: "verb-intransitive", forms: { "1st-singular":"swim", "3rd-singular":"swims", "3rd-plural":"swim", "1st-plural":"swim", "default":"swim" } },
-    { text: "jump",  subtype: "verb-intransitive", forms: { "1st-singular":"jump", "3rd-singular":"jumps", "3rd-plural":"jump", "1st-plural":"jump", "default":"jump" } },
-    { text: "sleep", subtype: "verb-intransitive", forms: { "1st-singular":"sleep","3rd-singular":"sleeps","3rd-plural":"sleep","1st-plural":"sleep","default":"sleep"} },
-    { text: "play",  subtype: "verb-intransitive", forms: { "1st-singular":"play", "3rd-singular":"plays", "3rd-plural":"play", "1st-plural":"play", "default":"play" } },
-    { text: "kick",  subtype: "verb-transitive",   forms: { "1st-singular":"kick", "3rd-singular":"kicks", "3rd-plural":"kick", "1st-plural":"kick", "default":"kick" } },
-    { text: "eat",   subtype: "verb-transitive",   forms: { "1st-singular":"eat",  "3rd-singular":"eats",  "3rd-plural":"eat",  "1st-plural":"eat",  "default":"eat"  } },
-    { text: "see",   subtype: "verb-transitive",   forms: { "1st-singular":"see",  "3rd-singular":"sees",  "3rd-plural":"see",  "1st-plural":"see",  "default":"see"  } },
-    { text: "is",    subtype: "verb-linking",      forms: { "1st-singular":"am",   "3rd-singular":"is",    "3rd-plural":"are",  "1st-plural":"are",  "default":"is"   } },
-    { text: "feels", subtype: "verb-linking",      forms: { "1st-singular":"feel", "3rd-singular":"feels", "3rd-plural":"feel", "1st-plural":"feel", "default":"feels"} },
-  ],
   articles: [
     { text: "a",   subtype: "article" },
     { text: "an",  subtype: "article" },
     { text: "the", subtype: "article" },
+  ],
+  determiners: [
+    // Note: my/her/his/their also appear in pronouns — possessive adjectives belong to both
+    // categories in traditional grammar; users can pick either tab for these words.
+    { text: "my",    subtype: "determiner" },
+    { text: "her",   subtype: "determiner" },
+    { text: "his",   subtype: "determiner" },
+    { text: "their", subtype: "determiner" },
+    { text: "this",  subtype: "determiner" },
+    { text: "every", subtype: "determiner" },
   ],
   adjectives: [
     { text: "big",    subtype: "adjective" },
@@ -962,6 +968,65 @@ const WORD_BANK = {
     { text: "bright", subtype: "adjective" },
     { text: "happy",  subtype: "adjective" },
   ],
+  nouns: [
+    { text: "dog",   subtype: "noun", agreement: "3rd-singular" },
+    { text: "cat",   subtype: "noun", agreement: "3rd-singular" },
+    { text: "orca",  subtype: "noun", agreement: "3rd-singular" },
+    { text: "bird",  subtype: "noun", agreement: "3rd-singular" },
+    { text: "kids",  subtype: "noun", agreement: "3rd-plural" },
+  ],
+  pronouns: [
+    // First Person Singular
+    { text: "I",          subtype: "pronoun", agreement: "1st-singular" },
+    { text: "me",         subtype: "pronoun", agreement: "1st-singular" },
+    { text: "my",         subtype: "pronoun", agreement: "1st-singular" },
+    { text: "mine",       subtype: "pronoun", agreement: "1st-singular" },
+    { text: "myself",     subtype: "pronoun", agreement: "1st-singular" },
+    // First Person Plural
+    { text: "we",         subtype: "pronoun", agreement: "1st-plural" },
+    { text: "us",         subtype: "pronoun", agreement: "1st-plural" },
+    { text: "our",        subtype: "pronoun", agreement: "1st-plural" },
+    { text: "ours",       subtype: "pronoun", agreement: "1st-plural" },
+    { text: "ourselves",  subtype: "pronoun", agreement: "1st-plural" },
+    // Second Person Singular/Plural
+    { text: "you",        subtype: "pronoun", agreement: "2nd" },
+    { text: "your",       subtype: "pronoun", agreement: "2nd" },
+    { text: "yours",      subtype: "pronoun", agreement: "2nd" },
+    { text: "yourself",   subtype: "pronoun", agreement: "2nd" },
+    { text: "yourselves", subtype: "pronoun", agreement: "2nd" },
+    // Third Person Singular — Masculine
+    { text: "he",         subtype: "pronoun", agreement: "3rd-singular" },
+    { text: "him",        subtype: "pronoun", agreement: "3rd-singular" },
+    { text: "his",        subtype: "pronoun", agreement: "3rd-singular" },
+    { text: "himself",    subtype: "pronoun", agreement: "3rd-singular" },
+    // Third Person Singular — Feminine
+    { text: "she",        subtype: "pronoun", agreement: "3rd-singular" },
+    { text: "her",        subtype: "pronoun", agreement: "3rd-singular" },
+    { text: "hers",       subtype: "pronoun", agreement: "3rd-singular" },
+    { text: "herself",    subtype: "pronoun", agreement: "3rd-singular" },
+    // Third Person Singular — Neuter
+    { text: "it",         subtype: "pronoun", agreement: "3rd-singular" },
+    { text: "its",        subtype: "pronoun", agreement: "3rd-singular" },
+    { text: "itself",     subtype: "pronoun", agreement: "3rd-singular" },
+    // Third Person Plural
+    { text: "they",       subtype: "pronoun", agreement: "3rd-plural" },
+    { text: "them",       subtype: "pronoun", agreement: "3rd-plural" },
+    { text: "their",      subtype: "pronoun", agreement: "3rd-plural" },
+    { text: "theirs",     subtype: "pronoun", agreement: "3rd-plural" },
+    { text: "themselves", subtype: "pronoun", agreement: "3rd-plural" },
+  ],
+  verbs: [
+    { text: "run",   subtype: "verb-intransitive", forms: { "1st-singular":"run",  "3rd-singular":"runs",  "3rd-plural":"run",  "1st-plural":"run",  "2nd":"run",  "default":"run"  } },
+    { text: "swim",  subtype: "verb-intransitive", forms: { "1st-singular":"swim", "3rd-singular":"swims", "3rd-plural":"swim", "1st-plural":"swim", "2nd":"swim", "default":"swim" } },
+    { text: "jump",  subtype: "verb-intransitive", forms: { "1st-singular":"jump", "3rd-singular":"jumps", "3rd-plural":"jump", "1st-plural":"jump", "2nd":"jump", "default":"jump" } },
+    { text: "sleep", subtype: "verb-intransitive", forms: { "1st-singular":"sleep","3rd-singular":"sleeps","3rd-plural":"sleep","1st-plural":"sleep","2nd":"sleep","default":"sleep"} },
+    { text: "play",  subtype: "verb-intransitive", forms: { "1st-singular":"play", "3rd-singular":"plays", "3rd-plural":"play", "1st-plural":"play", "2nd":"play", "default":"play" } },
+    { text: "kick",  subtype: "verb-transitive",   forms: { "1st-singular":"kick", "3rd-singular":"kicks", "3rd-plural":"kick", "1st-plural":"kick", "2nd":"kick", "default":"kick" } },
+    { text: "eat",   subtype: "verb-transitive",   forms: { "1st-singular":"eat",  "3rd-singular":"eats",  "3rd-plural":"eat",  "1st-plural":"eat",  "2nd":"eat",  "default":"eat"  } },
+    { text: "see",   subtype: "verb-transitive",   forms: { "1st-singular":"see",  "3rd-singular":"sees",  "3rd-plural":"see",  "1st-plural":"see",  "2nd":"see",  "default":"see"  } },
+    { text: "is",    subtype: "verb-linking",      forms: { "1st-singular":"am",   "3rd-singular":"is",    "3rd-plural":"are",  "1st-plural":"are",  "2nd":"are",  "default":"is"   } },
+    { text: "feels", subtype: "verb-linking",      forms: { "1st-singular":"feel", "3rd-singular":"feels", "3rd-plural":"feel", "1st-plural":"feel", "2nd":"feel", "default":"feels"} },
+  ],
   adverbs: [
     { text: "quickly",  subtype: "adverb" },
     { text: "slowly",   subtype: "adverb" },
@@ -969,14 +1034,6 @@ const WORD_BANK = {
     { text: "happily",  subtype: "adverb" },
     { text: "always",   subtype: "adverb" },
     { text: "never",    subtype: "adverb" },
-  ],
-  determiners: [
-    { text: "my",    subtype: "determiner" },
-    { text: "her",   subtype: "determiner" },
-    { text: "his",   subtype: "determiner" },
-    { text: "their", subtype: "determiner" },
-    { text: "this",  subtype: "determiner" },
-    { text: "every", subtype: "determiner" },
   ],
   prepositions: [
     { text: "in",   subtype: "preposition" },
@@ -995,7 +1052,7 @@ const WORD_BANK = {
 
 // ── LEVEL PROGRESSION ──
 const LEVELS = [
-  { level: 1, xpRequired: 0,   unlocks: ["nouns","verbs"],                           unlockLabel: "Nouns & Verbs",        punctUnlocks: [".",] },
+  { level: 1, xpRequired: 0,   unlocks: ["nouns","pronouns","verbs"],                unlockLabel: "Nouns & Verbs",        punctUnlocks: [".",] },
   { level: 2, xpRequired: 5,   unlocks: ["articles"],                                unlockLabel: "Articles unlocked",    punctUnlocks: [] },
   { level: 3, xpRequired: 20,  unlocks: ["adjectives"],                              unlockLabel: "Adjectives unlocked",  punctUnlocks: [] },
   { level: 4, xpRequired: 45,  unlocks: ["determiners"],                             unlockLabel: "Determiners unlocked", punctUnlocks: [] },
@@ -1427,12 +1484,11 @@ function checkPeriodAvailability() {
 //  WORD BANK UI
 // ═══════════════════════════════════════════════════
 
-const TAB_ORDER = ['nouns','verbs','articles','adjectives','determiners','adverbs','prepositions','conjunctions'];
+const TAB_ORDER = ['articles','determiners','adjectives','nouns','pronouns','verbs','adverbs','prepositions','conjunctions'];
 const TAB_LABELS = {
-  nouns: 'Nouns', verbs: 'Verbs', articles: 'Articles',
-  adjectives: 'Adjectives', adverbs: 'Adverbs',
-  determiners: 'Determiners', prepositions: 'Prepositions',
-  conjunctions: 'Conjunctions',
+  articles: 'Articles', determiners: 'Determiners', adjectives: 'Adjectives',
+  nouns: 'Nouns', pronouns: 'Pronouns', verbs: 'Verbs',
+  adverbs: 'Adverbs', prepositions: 'Prepositions', conjunctions: 'Conjunctions',
 };
 
 function buildBankTabs() {
@@ -1630,12 +1686,56 @@ function startDragFromRail(e, wordData, railId) {
         offsetY: pos.y - rect.top,
         fromBank: false,
         sourceRailId: railId,
+        sourceIndex: idx,
       };
       state.dragBlocked = false;
 
       checkPeriodAvailability();
     }
   }
+}
+
+// ═══════════════════════════════════════════════════
+//  REPULSION — keep dragged word away from incompatible blocks
+// ═══════════════════════════════════════════════════
+
+function calcRepulsion(x, y, el) {
+  if (!state.dragging || state.dragging.isPunct) return null;
+  const { wordData } = state.dragging;
+  const elW = el.offsetWidth || estimateBlockWidth(wordData.displayText || wordData.text);
+  const blockH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--block-h'));
+  const elCX = x + elW / 2;
+  const elCY = y + blockH / 2;
+
+  // Minimum centre-to-centre distance (one word width + gap)
+  const minDist = elW + BLOCK_GAP;
+
+  let totalDX = 0;
+  let totalDY = 0;
+
+  state.rails.forEach(rail => {
+    if (rail.isLocked) return;
+    rail.words.forEach(w => {
+      const targetEl = document.getElementById(`block-${w.id}`);
+      if (!targetEl) return;
+      const tRect = targetEl.getBoundingClientRect();
+      const tCX = tRect.left + tRect.width / 2;
+      const tCY = tRect.top + tRect.height / 2;
+      const side = elCX < tCX ? 'right' : 'left';
+      const conn = canConnect(wordData.subtype, w.subtype, side);
+      if (!conn.allowed) {
+        const dist = Math.sqrt(Math.pow(elCX - tCX, 2) + Math.pow(elCY - tCY, 2));
+        if (dist < minDist && dist > 0) {
+          const pushAmount = minDist - dist;
+          totalDX += ((elCX - tCX) / dist) * pushAmount;
+          totalDY += ((elCY - tCY) / dist) * pushAmount;
+        }
+      }
+    });
+  });
+
+  if (totalDX === 0 && totalDY === 0) return null;
+  return { x: x + totalDX, y: y + totalDY };
 }
 
 // ═══════════════════════════════════════════════════
@@ -1648,8 +1748,17 @@ function onDragMove(e) {
   if (e.cancelable) e.preventDefault();
 
   const { el, offsetX, offsetY } = state.dragging;
-  const newX = pos.x - offsetX;
-  const newY = pos.y - offsetY;
+  let newX = pos.x - offsetX;
+  let newY = pos.y - offsetY;
+
+  // Apply repulsion — word bounces away from incompatible neighbours
+  if (!state.dragging.isPunct) {
+    const repelled = calcRepulsion(newX, newY, el);
+    if (repelled) {
+      newX = repelled.x;
+      newY = repelled.y;
+    }
+  }
 
   el.style.left = `${newX}px`;
   el.style.top  = `${newY}px`;
@@ -1968,7 +2077,7 @@ function onDragEnd(e) {
 
   if (!state.dragging) return;
 
-  const { el, fromBank, sourceRailId, wordData, isPunct } = state.dragging;
+  const { el, fromBank, sourceRailId, sourceIndex, wordData, isPunct } = state.dragging;
 
   // Check if over discard zone
   const pos = getEventPos(e);
@@ -2055,7 +2164,38 @@ function onDragEnd(e) {
     }
   }
 
-  // Return to bank — shake first if the drop was at a blocked position
+  // Return to bank — spring back if from rail, fade if from bank
+  if (!fromBank && sourceRailId !== null) {
+    // Return word to its source rail at original position
+    const sourceRail = getRailById(sourceRailId);
+    if (sourceRail && !sourceRail.isLocked) {
+      const insertAt = (sourceIndex != null && sourceIndex >= 0 && sourceIndex <= sourceRail.words.length) ? sourceIndex : sourceRail.words.length;
+      sourceRail.words.splice(insertAt, 0, wordData);
+      updateRailAnalysis(sourceRail);
+      recalcRailScore(sourceRail);
+
+      const sourceRailEl = document.getElementById(`rail-${sourceRailId}`);
+      el.style.position = 'absolute';
+      el.style.zIndex = '10';
+      el.classList.remove('dragging');
+      el.classList.add('snapped');
+      sourceRailEl.appendChild(el);
+
+      el.addEventListener('mousedown', (ev) => { if (!sourceRail.isLocked) startDragFromRail(ev, wordData, sourceRailId); });
+      el.addEventListener('touchstart', (ev) => { if (!sourceRail.isLocked) startDragFromRail(ev, wordData, sourceRailId); }, { passive: false });
+
+      layoutRailAnimated(sourceRail, insertAt);
+      if (sourceRail.hasNoun && sourceRail.hasVerb) {
+        setTimeout(() => startJitter(sourceRailId), SPRING_DURATION + 50);
+        checkPeriodAvailability();
+      }
+      ensureEmptyRail();
+      resetInactivityTimer();
+      return;
+    }
+  }
+
+  // From bank (or orphaned) — fade out
   if (wasBlocked) {
     el.classList.add('shaking');
     setTimeout(() => {
@@ -2158,6 +2298,34 @@ function addXP(amount) {
   updateXPBar();
   checkLevelUp();
   saveState();
+}
+
+// ═══════════════════════════════════════════════════
+//  DEV MODE TOGGLE
+// ═══════════════════════════════════════════════════
+
+function toggleDevMode() {
+  DEV_MODE = !DEV_MODE;
+  localStorage.setItem('word-things-dev', DEV_MODE ? 'true' : 'false');
+
+  // Re-initialise state
+  state.level = 1;
+  state.xp = 0;
+  state.unlockedTypes = new Set();
+  state.unlockedPunct = new Set();
+  loadState();
+
+  buildBankTabs();
+  buildBankWords();
+  buildPunctTray();
+  updateXPBar();
+
+  const badge = document.getElementById('devBadge');
+  if (DEV_MODE) {
+    badge.classList.remove('dev-off');
+  } else {
+    badge.classList.add('dev-off');
+  }
 }
 
 function updateXPBar() {
@@ -2273,17 +2441,17 @@ window.addEventListener('touchend', onDragEnd);
 // ═══════════════════════════════════════════════════
 
 function coldOpen() {
-  // Hide dev badge if not dev mode
-  if (!DEV_MODE) {
-    document.getElementById('devBadge').style.display = 'none';
-  }
+  // Update dev badge appearance
+  const badge = document.getElementById('devBadge');
+  badge.classList.toggle('dev-off', !DEV_MODE);
 
   // Create first rail
   const rail = createRail();
 
-  // In non-dev mode, pre-seed with "I" noun to guide first action
+  // In non-dev mode, pre-seed with "I" to guide first action
   if (!DEV_MODE) {
-    const seedNoun = { ...WORD_BANK.nouns[0], id: state.idCounter++, displayText: WORD_BANK.nouns[0].text };
+    const seedWord = WORD_BANK.pronouns[0];
+    const seedNoun = { ...seedWord, id: state.idCounter++, displayText: seedWord.text };
     rail.words.push(seedNoun);
     updateRailAnalysis(rail);
 
