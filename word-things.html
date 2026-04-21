@@ -1,0 +1,2280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>Word Things.</title>
+  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;600;800;900&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #1a1b1f;
+      --canvas-bg: #131417;
+      --surface: #22232a;
+      --surface2: #2a2b33;
+      --glass: rgba(26,27,31,0.85);
+      --border: rgba(255,255,255,0.06);
+      --border-bright: rgba(255,255,255,0.12);
+
+      --text-main: #F5F5F7;
+      --text-gray: #86868B;
+      --text-light: #AEAEB2;
+      --accent: #007AFF;
+
+      /* Parts of speech — raiding Math Things. palette */
+      --noun:        #4169E1; /* Blue   — core mass */
+      --verb:        #DC143C; /* Red    — energy/action */
+      --adjective:   #64D2FF; /* Ice    — modifies blue */
+      --adverb:      #4CBB17; /* Green  — modifies red */
+      --article:     #FFD700; /* Yellow — initiator */
+      --determiner:  #FF9F0A; /* Orange — specifier */
+      --preposition: #CF3476; /* Magenta — bridge */
+      --conjunction: #7B00FF; /* Indigo — hinge */
+      --punctuation: #AEAEB2; /* Aluminum — neutral */
+
+      --shadow-block:
+        inset 2px 2px 0 rgba(255,255,255,0.12),
+        inset -2px -2px 0 rgba(0,0,0,0.3),
+        0 8px 20px rgba(0,0,0,0.4),
+        1px -1px 0 rgba(0,0,0,0.2);
+
+      --shadow-soft: 0 4px 24px rgba(0,0,0,0.3), 0 1px 4px rgba(0,0,0,0.2);
+
+      --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+      --ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+
+      --rail-h: 72px;
+      --block-h: 52px;
+      --block-r: 10px;
+      --header-h: 64px;
+      --bank-h: 160px;
+      --vault-w: 260px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Lexend', sans-serif;
+      background: var(--bg);
+      color: var(--text-main);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-font-smoothing: antialiased;
+      touch-action: none;
+    }
+
+    /* ── HEADER ── */
+    header {
+      height: var(--header-h);
+      background: var(--glass);
+      backdrop-filter: blur(40px);
+      -webkit-backdrop-filter: blur(40px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      flex-shrink: 0;
+      z-index: 200;
+      position: relative;
+    }
+
+    .logo {
+      display: inline-flex;
+      align-items: baseline;
+      font-weight: 900;
+      font-size: 1.3rem;
+      letter-spacing: -0.05em;
+      color: var(--text-main);
+    }
+
+    .logo-bead {
+      width: 0.22em; height: 0.22em;
+      margin-left: 0.04em; margin-bottom: 0.08em;
+      flex-shrink: 0; border-radius: 50%; display: inline-block;
+      background:
+        radial-gradient(circle at 33% 28%, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.3) 40%, transparent 65%),
+        radial-gradient(circle at 67% 72%, rgba(0,0,0,0.15) 0%, transparent 55%),
+        linear-gradient(135deg, #efefef 0%, #d0d0d0 25%, #a8a8a8 50%, #c0c0c0 75%, #e0e0e0 100%);
+      box-shadow:
+        inset 1px 1px 2px rgba(255,255,255,0.8),
+        inset -1px -1px 2px rgba(0,0,0,0.2),
+        0 2px 5px rgba(0,0,0,0.4);
+      transition: transform 0.35s var(--spring);
+    }
+    .logo:hover .logo-bead { transform: scale(1.4) translateY(-0.04em); }
+
+    /* ── XP BAR ── */
+    .xp-bar-wrap {
+      flex: 1;
+      max-width: 280px;
+      margin: 0 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .xp-bar-track {
+      height: 6px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 3px;
+      overflow: visible;
+      position: relative;
+    }
+    .xp-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--verb), #ff6b6b);
+      border-radius: 3px;
+      transition: width 0.6s var(--spring);
+      position: relative;
+    }
+    .xp-bar-fill::after {
+      content: '';
+      position: absolute;
+      right: -1px; top: -2px;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: #ff6b6b;
+      box-shadow: 0 0 8px rgba(220,20,60,0.8);
+    }
+    .xp-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.6rem;
+      font-weight: 600;
+      color: var(--text-gray);
+      letter-spacing: 0.5px;
+    }
+
+    /* DEV MODE badge */
+    .dev-badge {
+      background: rgba(255,200,0,0.15);
+      border: 1px solid rgba(255,200,0,0.3);
+      color: #FFD700;
+      font-size: 0.6rem;
+      font-weight: 800;
+      letter-spacing: 1px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    /* ── MAIN LAYOUT ── */
+    .main-area {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ── CANVAS ── */
+    .canvas-area {
+      flex: 1;
+      position: relative;
+      background: var(--canvas-bg);
+      background-image:
+        radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+        radial-gradient(circle at 50% 30%, rgba(65,105,225,0.04) 0%, transparent 60%);
+      background-size: 32px 32px, 100% 100%;
+      overflow: hidden;
+    }
+
+    /* ── RAILS ── */
+    .rails-container {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 20px 16px;
+      gap: 16px;
+    }
+
+    .rail {
+      position: relative;
+      width: 100%;
+      height: var(--rail-h);
+      display: flex;
+      align-items: center;
+    }
+
+    .rail-line {
+      position: absolute;
+      left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg,
+        transparent,
+        rgba(255,255,255,0.08) 10%,
+        rgba(255,255,255,0.08) 90%,
+        transparent
+      );
+      top: 50%;
+      transform: translateY(-50%);
+      pointer-events: none;
+    }
+
+    /* ── WORD BLOCKS ── */
+    .word-block {
+      position: absolute;
+      height: var(--block-h);
+      padding: 0 16px;
+      border-radius: var(--block-r);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Lexend', sans-serif;
+      font-weight: 800;
+      font-size: 1rem;
+      color: white;
+      cursor: grab;
+      box-shadow: var(--shadow-block);
+      white-space: nowrap;
+      z-index: 10;
+      transition: box-shadow 0.2s ease, opacity 0.3s ease;
+      letter-spacing: -0.02em;
+    }
+
+    .word-block:active { cursor: grabbing; }
+
+    .word-block.dragging {
+      z-index: 1000;
+      box-shadow:
+        var(--shadow-block),
+        0 20px 60px rgba(0,0,0,0.5);
+      transform: scale(1.05);
+    }
+
+    .word-block.snapped {
+      cursor: grab;
+    }
+
+    .word-block.locked {
+      cursor: default;
+    }
+
+    /* Block colors by type */
+    .type-noun        { background: var(--noun); }
+    .type-pronoun     { background: var(--noun); }
+    .type-verb        { background: var(--verb); }
+    .type-verb-linking { background: #b01030; }
+    .type-verb-transitive { background: var(--verb); }
+    .type-adjective   { background: var(--adjective); color: #1a1b1f; }
+    .type-adverb      { background: var(--adverb); color: #1a1b1f; }
+    .type-article     { background: var(--article); color: #1a1b1f; }
+    .type-determiner  { background: var(--determiner); color: #1a1b1f; }
+    .type-preposition { background: var(--preposition); }
+    .type-conjunction { background: var(--conjunction); }
+
+    /* In-field glow */
+    .word-block.in-field-attract {
+      box-shadow:
+        var(--shadow-block),
+        0 0 0 3px rgba(255,255,255,0.4),
+        0 0 20px rgba(255,255,255,0.2);
+    }
+
+    .word-block.in-field-repel {
+      box-shadow:
+        var(--shadow-block),
+        0 0 0 3px rgba(220,20,60,0.6),
+        0 0 20px rgba(220,20,60,0.3);
+    }
+
+    /* Jitter / breathing */
+    @keyframes breathe {
+      0%, 100% { box-shadow: var(--shadow-block), 0 0 8px rgba(255,255,255,0.05); }
+      50%       { box-shadow: var(--shadow-block), 0 0 20px rgba(255,255,255,0.12); }
+    }
+    .breathing { animation: breathe 3.5s ease-in-out infinite; }
+
+    /* Wiggle invitation */
+    @keyframes wiggle {
+      0%,100% { transform: rotate(0deg) translateY(0); }
+      15%      { transform: rotate(-4deg) translateY(-3px); }
+      30%      { transform: rotate(4deg) translateY(-2px); }
+      45%      { transform: rotate(-3deg) translateY(-3px); }
+      60%      { transform: rotate(3deg) translateY(-1px); }
+      75%      { transform: rotate(-2deg) translateY(-2px); }
+    }
+    .wiggling { animation: wiggle 0.7s ease-in-out; }
+
+    /* Morph (agreement) */
+    @keyframes morphFlash {
+      0%  { opacity: 1; }
+      25% { opacity: 0.2; }
+      50% { opacity: 1; }
+      75% { opacity: 0.2; }
+      100%{ opacity: 1; }
+    }
+    .morphing .block-text { animation: morphFlash 0.4s ease-in-out; }
+
+    .block-text {
+      pointer-events: none;
+      transition: opacity 0.1s ease;
+    }
+
+    /* ── PERIOD BEAD ── */
+    .period-bead {
+      position: absolute;
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 33% 28%, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.2) 40%, transparent 65%),
+        radial-gradient(circle at 67% 72%, rgba(0,0,0,0.3) 0%, transparent 55%),
+        linear-gradient(135deg, #efefef 0%, #d0d0d0 25%, #a8a8a8 50%, #c0c0c0 75%, #e0e0e0 100%);
+      box-shadow:
+        inset 2px 2px 4px rgba(255,255,255,0.6),
+        inset -2px -2px 4px rgba(0,0,0,0.3),
+        0 4px 12px rgba(0,0,0,0.5);
+      cursor: grab;
+      z-index: 50;
+      transition: opacity 0.4s ease, transform 0.2s var(--spring);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 1.2rem;
+      color: #555;
+    }
+
+    .period-bead.inert {
+      opacity: 0.25;
+      pointer-events: none;
+      cursor: default;
+    }
+
+    .period-bead.active {
+      opacity: 1;
+      cursor: grab;
+    }
+
+    @keyframes beadDance {
+      0%,100% { transform: translateY(0) rotate(0deg); }
+      25%     { transform: translateY(-6px) rotate(-10deg); }
+      75%     { transform: translateY(-4px) rotate(10deg); }
+    }
+    .period-bead.dancing { animation: beadDance 0.8s ease-in-out infinite; }
+
+    /* ── PUNCTUATION TRAY ── */
+    .punct-tray {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 10px 16px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      z-index: 100;
+    }
+
+    .punct-mark {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 1.1rem;
+      color: var(--text-main);
+      background:
+        radial-gradient(circle at 33% 28%, rgba(255,255,255,0.15) 0%, transparent 65%),
+        linear-gradient(135deg, #efefef 0%, #d0d0d0 25%, #a8a8a8 50%, #c0c0c0 75%, #e0e0e0 100%);
+      box-shadow:
+        inset 1px 1px 3px rgba(255,255,255,0.5),
+        inset -1px -1px 3px rgba(0,0,0,0.2),
+        0 3px 8px rgba(0,0,0,0.4);
+      cursor: grab;
+      transition: opacity 0.3s ease, transform 0.2s var(--spring);
+      color: #333;
+      font-family: 'Lexend', sans-serif;
+      position: relative;
+    }
+
+    .punct-mark.locked-mark {
+      opacity: 0.2;
+      pointer-events: none;
+      filter: grayscale(1);
+    }
+
+    .punct-mark:not(.locked-mark):hover {
+      transform: scale(1.1) translateY(-2px);
+    }
+
+    .punct-tray-label {
+      font-size: 0.55rem;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-gray);
+      padding-right: 6px;
+      border-right: 1px solid var(--border);
+    }
+
+    /* ── POTENTIAL SCORE ── */
+    .score-badge {
+      position: absolute;
+      top: -28px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 20px;
+      padding: 2px 10px;
+      font-size: 0.7rem;
+      font-weight: 800;
+      color: var(--text-light);
+      white-space: nowrap;
+      pointer-events: none;
+      transition: all 0.3s var(--spring);
+      letter-spacing: 0.5px;
+    }
+
+    .score-badge.has-value {
+      color: #FFD700;
+      background: rgba(255,215,0,0.1);
+      border-color: rgba(255,215,0,0.3);
+    }
+
+    /* ── VAULT ── */
+    .vault {
+      width: var(--vault-w);
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .vault-header {
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .vault-title {
+      font-size: 0.6rem;
+      font-weight: 800;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--text-gray);
+    }
+
+    .vault-count {
+      font-size: 0.65rem;
+      font-weight: 600;
+      color: var(--text-light);
+    }
+
+    .vault-sentences {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .vault-sentences::-webkit-scrollbar { width: 3px; }
+    .vault-sentences::-webkit-scrollbar-track { background: transparent; }
+    .vault-sentences::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+
+    .vault-entry {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-main);
+      line-height: 1.5;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .vault-entry:hover {
+      border-color: var(--border-bright);
+      background: var(--surface);
+      transform: translateX(-2px);
+    }
+
+    .vault-entry-xp {
+      font-size: 0.6rem;
+      font-weight: 800;
+      color: var(--text-gray);
+      margin-top: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    @keyframes vaultSlideIn {
+      from { opacity: 0; transform: translateX(20px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    .vault-entry.new { animation: vaultSlideIn 0.4s var(--spring); }
+
+    /* ── WORD BANK ── */
+    .word-bank {
+      height: var(--bank-h);
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .bank-tabs {
+      display: flex;
+      padding: 8px 12px 0;
+      gap: 4px;
+      overflow-x: auto;
+      flex-shrink: 0;
+    }
+
+    .bank-tabs::-webkit-scrollbar { display: none; }
+
+    .bank-tab {
+      padding: 5px 12px;
+      border-radius: 8px 8px 0 0;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--text-gray);
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      position: relative;
+      font-family: 'Lexend', sans-serif;
+    }
+
+    .bank-tab::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 8px; right: 8px;
+      height: 2px;
+      border-radius: 1px;
+      background: transparent;
+      transition: background 0.2s ease;
+    }
+
+    .bank-tab.active {
+      color: var(--text-main);
+    }
+
+    .bank-tab.active::after {
+      background: var(--accent);
+    }
+
+    .bank-tab.locked-tab {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    /* Tab color indicators */
+    .bank-tab[data-type="nouns"]::after        { background: var(--noun); }
+    .bank-tab[data-type="verbs"]::after        { background: var(--verb); }
+    .bank-tab[data-type="adjectives"]::after   { background: var(--adjective); }
+    .bank-tab[data-type="adverbs"]::after      { background: var(--adverb); }
+    .bank-tab[data-type="articles"]::after     { background: var(--article); }
+    .bank-tab[data-type="determiners"]::after  { background: var(--determiner); }
+    .bank-tab[data-type="prepositions"]::after { background: var(--preposition); }
+    .bank-tab[data-type="conjunctions"]::after { background: var(--conjunction); }
+
+    .bank-tab:not(.active)::after { opacity: 0; }
+    .bank-tab.active::after { opacity: 1; }
+
+    .bank-words {
+      flex: 1;
+      padding: 8px 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-content: flex-start;
+      overflow-y: auto;
+    }
+
+    .bank-words::-webkit-scrollbar { display: none; }
+
+    .bank-word {
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-family: 'Lexend', sans-serif;
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: white;
+      cursor: grab;
+      box-shadow: var(--shadow-block);
+      white-space: nowrap;
+      transition: transform 0.15s var(--spring), box-shadow 0.15s ease;
+      letter-spacing: -0.02em;
+      user-select: none;
+    }
+
+    .bank-word:hover {
+      transform: translateY(-2px) scale(1.03);
+      box-shadow: var(--shadow-block), 0 8px 24px rgba(0,0,0,0.3);
+    }
+
+    .bank-word:active {
+      transform: scale(0.95);
+      cursor: grabbing;
+    }
+
+    .bank-word.light-text { color: #1a1b1f; }
+
+    /* ── FOOTER ── */
+    footer {
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      font-size: 0.6rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-gray);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      background: var(--surface);
+    }
+
+    .footer-bead {
+      display: inline-block;
+      width: 4px; height: 4px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 33% 28%, rgba(255,255,255,0.8) 0%, transparent 65%),
+        linear-gradient(135deg, #efefef, #a8a8a8, #e0e0e0);
+      box-shadow: inset 0 1px 1px rgba(255,255,255,0.6), 0 1px 3px rgba(0,0,0,0.3);
+      vertical-align: middle;
+      margin: 0 4px;
+    }
+
+    /* ── LEVEL UP OVERLAY ── */
+    .level-up-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9000;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .level-up-overlay.show {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .level-up-card {
+      background: var(--surface);
+      border: 1px solid var(--border-bright);
+      border-radius: 24px;
+      padding: 40px 48px;
+      text-align: center;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.6);
+      transform: scale(0.8);
+      transition: transform 0.5s var(--spring);
+    }
+
+    .level-up-overlay.show .level-up-card {
+      transform: scale(1);
+    }
+
+    .level-up-number {
+      font-size: 4rem;
+      font-weight: 900;
+      letter-spacing: -0.05em;
+      color: #FFD700;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .level-up-label {
+      font-size: 0.7rem;
+      font-weight: 800;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--text-gray);
+      margin-bottom: 20px;
+    }
+
+    .level-up-unlock {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 24px;
+    }
+
+    .level-up-dismiss {
+      background: var(--accent);
+      border: none;
+      border-radius: 12px;
+      padding: 12px 28px;
+      color: white;
+      font-family: 'Lexend', sans-serif;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: transform 0.15s var(--spring);
+    }
+
+    .level-up-dismiss:hover { transform: scale(1.03); }
+    .level-up-dismiss:active { transform: scale(0.97); }
+
+    /* XP pulse animation */
+    @keyframes xpPulse {
+      0%   { transform: scale(1); }
+      50%  { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+
+    /* Lock flash */
+    @keyframes lockFlash {
+      0%   { opacity: 0; }
+      20%  { opacity: 0.15; }
+      100% { opacity: 0; }
+    }
+
+    .lock-flash {
+      position: fixed;
+      inset: 0;
+      background: white;
+      pointer-events: none;
+      z-index: 8000;
+      opacity: 0;
+    }
+
+    .lock-flash.flash {
+      animation: lockFlash 0.5s ease-out forwards;
+    }
+
+    /* New block slide-in from bank */
+    @keyframes blockSlideIn {
+      from { opacity: 0; transform: translateY(20px) scale(0.8); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .bank-word.new-unlock {
+      animation: blockSlideIn 0.4s var(--spring);
+    }
+
+    /* Floating XP number */
+    .floating-xp {
+      position: fixed;
+      font-weight: 900;
+      font-size: 1.2rem;
+      color: #FFD700;
+      pointer-events: none;
+      z-index: 7000;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+      transition: none;
+    }
+
+    @keyframes floatUp {
+      0%   { opacity: 1; transform: translateY(0) scale(1); }
+      100% { opacity: 0; transform: translateY(-60px) scale(1.3); }
+    }
+
+    .floating-xp.animate {
+      animation: floatUp 1s ease-out forwards;
+    }
+
+    /* Discard zone */
+    .discard-zone {
+      position: absolute;
+      bottom: 80px;
+      right: 16px;
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      background: rgba(220,20,60,0.08);
+      border: 1.5px dashed rgba(220,20,60,0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(220,20,60,0.4);
+      font-size: 1rem;
+      transition: all 0.2s ease;
+      pointer-events: none;
+    }
+
+    .discard-zone.active-target {
+      background: rgba(220,20,60,0.15);
+      border-color: rgba(220,20,60,0.6);
+      color: rgba(220,20,60,0.8);
+      transform: scale(1.1);
+    }
+
+    /* Empty vault hint */
+    .vault-empty {
+      padding: 24px 16px;
+      text-align: center;
+      color: var(--text-gray);
+      font-size: 0.75rem;
+      font-weight: 400;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Lock flash -->
+<div class="lock-flash" id="lockFlash"></div>
+
+<!-- Level up overlay -->
+<div class="level-up-overlay" id="levelUpOverlay">
+  <div class="level-up-card">
+    <div class="level-up-label">Level Up</div>
+    <div class="level-up-number" id="levelUpNum">2</div>
+    <div class="level-up-unlock" id="levelUpUnlock">Articles unlocked</div>
+    <button class="level-up-dismiss" onclick="dismissLevelUp()">Keep Writing</button>
+  </div>
+</div>
+
+<header>
+  <div class="logo">Word Things<span class="logo-bead"></span></div>
+  <div class="xp-bar-wrap">
+    <div class="xp-label">
+      <span id="levelLabel">Level 1</span>
+      <span id="xpLabel">0 / 5 XP</span>
+    </div>
+    <div class="xp-bar-track">
+      <div class="xp-bar-fill" id="xpFill" style="width: 0%"></div>
+    </div>
+  </div>
+  <div id="devBadge" class="dev-badge">Dev Mode</div>
+</header>
+
+<div class="main-area">
+
+  <!-- Canvas -->
+  <div class="canvas-area" id="canvasArea">
+    <div class="rails-container" id="railsContainer">
+      <!-- Rails injected by JS -->
+    </div>
+
+    <!-- Discard zone -->
+    <div class="discard-zone" id="discardZone">✕</div>
+
+    <!-- Punctuation tray -->
+    <div class="punct-tray" id="punctTray">
+      <span class="punct-tray-label">Punct</span>
+      <!-- Filled by JS -->
+    </div>
+  </div>
+
+  <!-- Vault -->
+  <div class="vault">
+    <div class="vault-header">
+      <span class="vault-title">Vault</span>
+      <span class="vault-count" id="vaultCount">0 sentences</span>
+    </div>
+    <div class="vault-sentences" id="vaultSentences">
+      <div class="vault-empty">Your sentences will collect here.<br>Build something.</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Word bank -->
+<div class="word-bank">
+  <div class="bank-tabs" id="bankTabs"></div>
+  <div class="bank-words" id="bankWords"></div>
+</div>
+
+<footer>
+  Word Things<span class="footer-bead"></span>&nbsp;|&nbsp;Language, in your hands<span class="footer-bead"></span>
+</footer>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════════
+
+const DEV_MODE = true;
+
+// ── WORD BANK ──
+const WORD_BANK = {
+  nouns: [
+    { text: "I",      subtype: "pronoun",  agreement: "1st-singular" },
+    { text: "she",    subtype: "pronoun",  agreement: "3rd-singular" },
+    { text: "he",     subtype: "pronoun",  agreement: "3rd-singular" },
+    { text: "they",   subtype: "pronoun",  agreement: "3rd-plural" },
+    { text: "we",     subtype: "pronoun",  agreement: "1st-plural" },
+    { text: "the dog",   subtype: "noun",  agreement: "3rd-singular" },
+    { text: "the cat",   subtype: "noun",  agreement: "3rd-singular" },
+    { text: "the orca",  subtype: "noun",  agreement: "3rd-singular" },
+    { text: "the bird",  subtype: "noun",  agreement: "3rd-singular" },
+    { text: "the kids",  subtype: "noun",  agreement: "3rd-plural" },
+  ],
+  verbs: [
+    { text: "run",   subtype: "verb-intransitive", forms: { "1st-singular":"run",  "3rd-singular":"runs",  "3rd-plural":"run",  "1st-plural":"run",  "default":"run"  } },
+    { text: "swim",  subtype: "verb-intransitive", forms: { "1st-singular":"swim", "3rd-singular":"swims", "3rd-plural":"swim", "1st-plural":"swim", "default":"swim" } },
+    { text: "jump",  subtype: "verb-intransitive", forms: { "1st-singular":"jump", "3rd-singular":"jumps", "3rd-plural":"jump", "1st-plural":"jump", "default":"jump" } },
+    { text: "sleep", subtype: "verb-intransitive", forms: { "1st-singular":"sleep","3rd-singular":"sleeps","3rd-plural":"sleep","1st-plural":"sleep","default":"sleep"} },
+    { text: "play",  subtype: "verb-intransitive", forms: { "1st-singular":"play", "3rd-singular":"plays", "3rd-plural":"play", "1st-plural":"play", "default":"play" } },
+    { text: "kick",  subtype: "verb-transitive",   forms: { "1st-singular":"kick", "3rd-singular":"kicks", "3rd-plural":"kick", "1st-plural":"kick", "default":"kick" } },
+    { text: "eat",   subtype: "verb-transitive",   forms: { "1st-singular":"eat",  "3rd-singular":"eats",  "3rd-plural":"eat",  "1st-plural":"eat",  "default":"eat"  } },
+    { text: "see",   subtype: "verb-transitive",   forms: { "1st-singular":"see",  "3rd-singular":"sees",  "3rd-plural":"see",  "1st-plural":"see",  "default":"see"  } },
+    { text: "is",    subtype: "verb-linking",      forms: { "1st-singular":"am",   "3rd-singular":"is",    "3rd-plural":"are",  "1st-plural":"are",  "default":"is"   } },
+    { text: "feels", subtype: "verb-linking",      forms: { "1st-singular":"feel", "3rd-singular":"feels", "3rd-plural":"feel", "1st-plural":"feel", "default":"feels"} },
+  ],
+  articles: [
+    { text: "a",   subtype: "article" },
+    { text: "an",  subtype: "article" },
+    { text: "the", subtype: "article" },
+  ],
+  adjectives: [
+    { text: "big",    subtype: "adjective" },
+    { text: "fast",   subtype: "adjective" },
+    { text: "small",  subtype: "adjective" },
+    { text: "quiet",  subtype: "adjective" },
+    { text: "bright", subtype: "adjective" },
+    { text: "happy",  subtype: "adjective" },
+  ],
+  adverbs: [
+    { text: "quickly",  subtype: "adverb" },
+    { text: "slowly",   subtype: "adverb" },
+    { text: "quietly",  subtype: "adverb" },
+    { text: "happily",  subtype: "adverb" },
+    { text: "always",   subtype: "adverb" },
+    { text: "never",    subtype: "adverb" },
+  ],
+  determiners: [
+    { text: "my",    subtype: "determiner" },
+    { text: "her",   subtype: "determiner" },
+    { text: "his",   subtype: "determiner" },
+    { text: "their", subtype: "determiner" },
+    { text: "this",  subtype: "determiner" },
+    { text: "every", subtype: "determiner" },
+  ],
+  prepositions: [
+    { text: "in",   subtype: "preposition" },
+    { text: "on",   subtype: "preposition" },
+    { text: "by",   subtype: "preposition" },
+    { text: "near", subtype: "preposition" },
+    { text: "over", subtype: "preposition" },
+  ],
+  conjunctions: [
+    { text: "and", subtype: "conjunction" },
+    { text: "but", subtype: "conjunction" },
+    { text: "so",  subtype: "conjunction" },
+    { text: "or",  subtype: "conjunction" },
+  ],
+};
+
+// ── LEVEL PROGRESSION ──
+const LEVELS = [
+  { level: 1, xpRequired: 0,   unlocks: ["nouns","verbs"],                           unlockLabel: "Nouns & Verbs",        punctUnlocks: [".",] },
+  { level: 2, xpRequired: 5,   unlocks: ["articles"],                                unlockLabel: "Articles unlocked",    punctUnlocks: [] },
+  { level: 3, xpRequired: 20,  unlocks: ["adjectives"],                              unlockLabel: "Adjectives unlocked",  punctUnlocks: [] },
+  { level: 4, xpRequired: 45,  unlocks: ["determiners"],                             unlockLabel: "Determiners unlocked", punctUnlocks: [] },
+  { level: 5, xpRequired: 80,  unlocks: [],                                          unlockLabel: "! and ? unlocked",     punctUnlocks: ["!","?"] },
+  { level: 6, xpRequired: 130, unlocks: ["adverbs"],                                 unlockLabel: "Adverbs unlocked",     punctUnlocks: [] },
+  { level: 7, xpRequired: 200, unlocks: ["prepositions"],                            unlockLabel: "Prepositions unlocked",punctUnlocks: [] },
+  { level: 8, xpRequired: 300, unlocks: ["conjunctions"],                            unlockLabel: "Conjunctions unlocked",punctUnlocks: [","] },
+];
+
+const ALL_PUNCT = [".", "!", "?", ",", ";", ":", '"', "'", "(", ")", "—", "–", "…"];
+
+// ── SCORING ──
+const SCORE_VALUES = {
+  "pronoun": 3, "noun": 4,
+  "verb-intransitive": 4, "verb-transitive": 5, "verb-linking": 3,
+  "article": 2, "determiner": 4,
+  "adjective": 3, "adverb": 3,
+  "preposition": 3, "conjunction": 5,
+};
+
+// ── PHYSICS ──
+const SNAP_DISTANCE    = 90;   // px — event horizon
+const FIELD_DISTANCE   = 160;  // px — glow zone
+const REPEL_DISTANCE   = 80;   // px — repulsion zone
+const JITTER_START     = 2.2;
+const JITTER_DECAY     = 0.88;
+const SPRING_DURATION  = 200;  // ms
+
+// ── MAGNETIC CONNECTION RULES ──
+// Returns: 'attract' | 'repel' | 'neutral' | 'self'
+// direction: 'left' = dragged is to the left of target, 'right' = dragged is to the right
+function canConnect(draggedType, targetType, direction) {
+  // Nouns/pronouns attract verbs to their right
+  if (isNounType(draggedType) && isVerbType(targetType) && direction === 'left') return 'attract';
+  // Verbs attract nouns to their left
+  if (isVerbType(draggedType) && isNounType(targetType) && direction === 'right') return 'attract';
+  // Articles attract nouns to their right
+  if (draggedType === 'article' && isNounType(targetType) && direction === 'left') return 'attract';
+  // Determiners attract nouns to their right
+  if (draggedType === 'determiner' && isNounType(targetType) && direction === 'left') return 'attract';
+  // Adjectives attract nouns to their right
+  if (draggedType === 'adjective' && isNounType(targetType) && direction === 'left') return 'attract';
+  // Nouns attract articles to their left
+  if (isNounType(draggedType) && (targetType === 'article' || targetType === 'determiner') && direction === 'right') return 'attract';
+  // Adverbs can go after verbs
+  if (draggedType === 'adverb' && isVerbType(targetType) && direction === 'right') return 'neutral';
+  // Verbs repel from their right (for intransitive) - handled at sentence level
+  // Default: neutral
+  return 'neutral';
+}
+
+function isNounType(t) { return t === 'noun' || t === 'pronoun'; }
+function isVerbType(t) { return t === 'verb-intransitive' || t === 'verb-transitive' || t === 'verb-linking'; }
+
+// ═══════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════
+
+let state = {
+  level: 1,
+  xp: 0,
+  unlockedTypes: new Set(),
+  unlockedPunct: new Set(),
+  vaultSentences: [],
+
+  rails: [],         // array of rail objects
+  activeRailId: 0,
+
+  dragging: null,    // { el, offsetX, offsetY, sourceRailId, sourceIndex, fromBank, wordData }
+  physicsLoops: {},  // railId -> animFrame
+
+  activeTab: 'nouns',
+  idCounter: 0,
+  inactivityTimer: null,
+};
+
+// ── PERSISTENCE ──
+function saveState() {
+  try {
+    const save = {
+      level: state.level,
+      xp: state.xp,
+      unlockedTypes: [...state.unlockedTypes],
+      unlockedPunct: [...state.unlockedPunct],
+      vaultSentences: state.vaultSentences,
+    };
+    localStorage.setItem('word-things-v1', JSON.stringify(save));
+  } catch(e) {}
+}
+
+function loadState() {
+  if (DEV_MODE) {
+    // Unlock everything in dev mode
+    state.level = LEVELS.length;
+    state.xp = 9999;
+    Object.keys(WORD_BANK).forEach(k => state.unlockedTypes.add(k));
+    ALL_PUNCT.forEach(p => state.unlockedPunct.add(p));
+    return;
+  }
+  try {
+    const raw = localStorage.getItem('word-things-v1');
+    if (raw) {
+      const save = JSON.parse(raw);
+      state.level = save.level || 1;
+      state.xp    = save.xp || 0;
+      state.unlockedTypes = new Set(save.unlockedTypes || []);
+      state.unlockedPunct = new Set(save.unlockedPunct || ["."]);
+      state.vaultSentences = save.vaultSentences || [];
+    } else {
+      // Fresh start
+      applyLevelUnlocks(1);
+    }
+  } catch(e) {
+    applyLevelUnlocks(1);
+  }
+}
+
+function applyLevelUnlocks(level) {
+  for (let i = 0; i < LEVELS.length; i++) {
+    if (LEVELS[i].level <= level) {
+      LEVELS[i].unlocks.forEach(u => state.unlockedTypes.add(u));
+      LEVELS[i].punctUnlocks.forEach(p => state.unlockedPunct.add(p));
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  RAIL MANAGEMENT
+// ═══════════════════════════════════════════════════
+
+function createRail() {
+  const id = state.idCounter++;
+  const rail = {
+    id,
+    words: [],             // array of word objects on this rail
+    isLocked: false,
+    potentialScore: 0,
+    jitterAmplitude: 0,
+    scalePulse: 1,
+    hasNoun: false,
+    hasVerb: false,
+    subjectAgreement: null,
+  };
+  state.rails.push(rail);
+  renderRails();
+  return rail;
+}
+
+function getRailById(id) {
+  return state.rails.find(r => r.id === id);
+}
+
+function renderRails() {
+  const container = document.getElementById('railsContainer');
+
+  // Remove rails that no longer exist
+  const existingIds = new Set(state.rails.map(r => r.id));
+  container.querySelectorAll('.rail').forEach(el => {
+    const id = parseInt(el.dataset.railId);
+    if (!existingIds.has(id)) el.remove();
+  });
+
+  // Create/update rails
+  state.rails.forEach(rail => {
+    let railEl = document.getElementById(`rail-${rail.id}`);
+    if (!railEl) {
+      railEl = document.createElement('div');
+      railEl.className = 'rail';
+      railEl.id = `rail-${rail.id}`;
+      railEl.dataset.railId = rail.id;
+
+      const line = document.createElement('div');
+      line.className = 'rail-line';
+      railEl.appendChild(line);
+
+      // Score badge
+      const badge = document.createElement('div');
+      badge.className = 'score-badge';
+      badge.id = `score-badge-${rail.id}`;
+      railEl.appendChild(badge);
+
+      container.appendChild(railEl);
+    }
+    updateScoreBadge(rail);
+  });
+}
+
+function updateScoreBadge(rail) {
+  const badge = document.getElementById(`score-badge-${rail.id}`);
+  if (!badge) return;
+  if (rail.potentialScore > 0 && !rail.isLocked) {
+    badge.textContent = `${rail.potentialScore} pts potential`;
+    badge.classList.add('has-value');
+    badge.style.opacity = '1';
+  } else {
+    badge.textContent = '';
+    badge.classList.remove('has-value');
+    badge.style.opacity = '0';
+  }
+}
+
+function recalcRailScore(rail) {
+  let score = 0;
+  rail.words.forEach(w => {
+    score += SCORE_VALUES[w.subtype] || 2;
+  });
+  // Bonus for complete circuit
+  if (rail.hasNoun && rail.hasVerb) score += 3;
+  rail.potentialScore = score;
+  updateScoreBadge(rail);
+}
+
+// ═══════════════════════════════════════════════════
+//  WORD BLOCK DOM MANAGEMENT
+// ═══════════════════════════════════════════════════
+
+function getTypeClass(subtype) {
+  if (subtype === 'pronoun' || subtype === 'noun') return 'type-noun';
+  if (subtype === 'verb-intransitive' || subtype === 'verb-transitive') return 'type-verb';
+  if (subtype === 'verb-linking') return 'type-verb-linking';
+  return `type-${subtype}`;
+}
+
+function isLightText(subtype) {
+  return ['adjective','adverb','article','determiner'].includes(subtype);
+}
+
+function createWordBlockEl(wordData, railId) {
+  const el = document.createElement('div');
+  el.className = `word-block ${getTypeClass(wordData.subtype)}`;
+  if (isLightText(wordData.subtype)) el.classList.add('light-text');
+  el.dataset.wordId = wordData.id;
+  el.dataset.railId = railId;
+  el.dataset.subtype = wordData.subtype;
+
+  const textSpan = document.createElement('span');
+  textSpan.className = 'block-text';
+  textSpan.textContent = wordData.displayText || wordData.text;
+  el.appendChild(textSpan);
+
+  return el;
+}
+
+function getBlockText(el) {
+  return el.querySelector('.block-text');
+}
+
+// ═══════════════════════════════════════════════════
+//  LAYOUT — position words on rail
+// ═══════════════════════════════════════════════════
+
+const BLOCK_GAP = 8;
+const RAIL_PADDING = 16;
+
+function layoutRail(rail) {
+  const railEl = document.getElementById(`rail-${rail.id}`);
+  if (!railEl) return;
+
+  // Measure blocks
+  let x = RAIL_PADDING;
+  const railH = rail.words.length > 0 ? parseInt(getComputedStyle(document.documentElement).getPropertyValue('--rail-h')) : 72;
+  const blockH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--block-h'));
+  const topOffset = (railH - blockH) / 2;
+
+  rail.words.forEach((wordData, i) => {
+    const el = document.getElementById(`block-${wordData.id}`);
+    if (!el) return;
+    const w = el.offsetWidth || estimateBlockWidth(wordData.displayText || wordData.text);
+    el.style.left = `${x}px`;
+    el.style.top = `${topOffset}px`;
+    x += w + BLOCK_GAP;
+  });
+}
+
+function estimateBlockWidth(text) {
+  return text.length * 11 + 32;
+}
+
+function layoutRailAnimated(rail, changedIndex) {
+  const blockH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--block-h'));
+  const railH = 72;
+  const topOffset = (railH - blockH) / 2;
+  let x = RAIL_PADDING;
+
+  rail.words.forEach((wordData, i) => {
+    const el = document.getElementById(`block-${wordData.id}`);
+    if (!el) return;
+    const w = el.offsetWidth || estimateBlockWidth(wordData.displayText || wordData.text);
+    el.style.transition = `left ${SPRING_DURATION}ms var(--spring), top ${SPRING_DURATION}ms var(--spring)`;
+    el.style.left = `${x}px`;
+    el.style.top = `${topOffset}px`;
+    setTimeout(() => { el.style.transition = ''; }, SPRING_DURATION + 50);
+    x += w + BLOCK_GAP;
+  });
+}
+
+// ═══════════════════════════════════════════════════
+//  PHYSICS — jitter / settle
+// ═══════════════════════════════════════════════════
+
+function startJitter(railId) {
+  const rail = getRailById(railId);
+  if (!rail || rail.isLocked) return;
+
+  rail.jitterAmplitude = JITTER_START;
+  rail.scalePulse = 1.03;
+
+  if (state.physicsLoops[railId]) cancelAnimationFrame(state.physicsLoops[railId]);
+
+  function loop() {
+    const r = getRailById(railId);
+    if (!r || r.isLocked) return;
+
+    if (r.jitterAmplitude > 0.08 || r.scalePulse > 1) {
+      const dx = Math.sin(Date.now() / 30) * r.jitterAmplitude;
+      const dy = Math.cos(Date.now() / 45) * (r.jitterAmplitude * 0.12);
+
+      r.words.forEach(w => {
+        const el = document.getElementById(`block-${w.id}`);
+        if (el) el.style.transform = `translate(${dx}px, ${dy}px) scale(${r.scalePulse})`;
+      });
+
+      r.jitterAmplitude *= JITTER_DECAY;
+      if (r.scalePulse > 1) {
+        r.scalePulse -= 0.006;
+        if (r.scalePulse < 1) r.scalePulse = 1;
+      }
+
+      state.physicsLoops[railId] = requestAnimationFrame(loop);
+    } else {
+      // Quiet lock
+      r.words.forEach(w => {
+        const el = document.getElementById(`block-${w.id}`);
+        if (el) {
+          el.style.transform = 'translate(0,0) scale(1)';
+          el.classList.add('breathing');
+        }
+      });
+      delete state.physicsLoops[railId];
+    }
+  }
+
+  state.physicsLoops[railId] = requestAnimationFrame(loop);
+}
+
+function stopJitter(railId) {
+  if (state.physicsLoops[railId]) {
+    cancelAnimationFrame(state.physicsLoops[railId]);
+    delete state.physicsLoops[railId];
+  }
+  const rail = getRailById(railId);
+  if (!rail) return;
+  rail.words.forEach(w => {
+    const el = document.getElementById(`block-${w.id}`);
+    if (el) el.style.transform = 'translate(0,0) scale(1)';
+  });
+}
+
+// ═══════════════════════════════════════════════════
+//  AGREEMENT — auto-conjugate verb to subject
+// ═══════════════════════════════════════════════════
+
+function updateVerbAgreement(rail) {
+  if (!rail.subjectAgreement) return;
+
+  rail.words.forEach(w => {
+    if (isVerbType(w.subtype) && w.forms) {
+      const newForm = w.forms[rail.subjectAgreement] || w.forms['default'] || w.text;
+      if (newForm !== w.displayText) {
+        w.displayText = newForm;
+        const el = document.getElementById(`block-${w.id}`);
+        if (el) {
+          el.classList.add('morphing');
+          setTimeout(() => {
+            const span = getBlockText(el);
+            if (span) span.textContent = newForm;
+            el.classList.remove('morphing');
+          }, 200);
+        }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════
+//  PERIOD BEAD — circuit lock
+// ═══════════════════════════════════════════════════
+
+function checkPeriodAvailability() {
+  // Period active if any rail has complete circuit (noun + verb)
+  const anyComplete = state.rails.some(r => !r.isLocked && r.hasNoun && r.hasVerb);
+  document.querySelectorAll('.punct-mark[data-punct="."]').forEach(el => {
+    if (anyComplete) {
+      el.classList.remove('locked-mark');
+      el.classList.add('dancing');
+    } else {
+      el.classList.add('locked-mark');
+      el.classList.remove('dancing');
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════
+//  WORD BANK UI
+// ═══════════════════════════════════════════════════
+
+const TAB_ORDER = ['nouns','verbs','articles','adjectives','determiners','adverbs','prepositions','conjunctions'];
+const TAB_LABELS = {
+  nouns: 'Nouns', verbs: 'Verbs', articles: 'Articles',
+  adjectives: 'Adjectives', adverbs: 'Adverbs',
+  determiners: 'Determiners', prepositions: 'Prepositions',
+  conjunctions: 'Conjunctions',
+};
+
+function buildBankTabs() {
+  const tabsEl = document.getElementById('bankTabs');
+  tabsEl.innerHTML = '';
+  TAB_ORDER.forEach(type => {
+    const tab = document.createElement('button');
+    tab.className = 'bank-tab' + (state.activeTab === type ? ' active' : '');
+    tab.dataset.type = type;
+    tab.textContent = TAB_LABELS[type];
+    if (!DEV_MODE && !state.unlockedTypes.has(type)) {
+      tab.classList.add('locked-tab');
+      tab.title = 'Not yet unlocked';
+    }
+    tab.addEventListener('click', () => {
+      if (!DEV_MODE && !state.unlockedTypes.has(type)) return;
+      state.activeTab = type;
+      buildBankTabs();
+      buildBankWords();
+    });
+    tabsEl.appendChild(tab);
+  });
+}
+
+function buildBankWords() {
+  const wordsEl = document.getElementById('bankWords');
+  wordsEl.innerHTML = '';
+  const words = WORD_BANK[state.activeTab] || [];
+
+  words.forEach(wordData => {
+    const el = document.createElement('div');
+    el.className = `bank-word ${getTypeClass(wordData.subtype)}`;
+    if (isLightText(wordData.subtype)) el.classList.add('light-text');
+    el.textContent = wordData.text;
+    el.dataset.subtype = wordData.subtype;
+
+    el.addEventListener('mousedown', (e) => startDragFromBank(e, wordData, el));
+    el.addEventListener('touchstart', (e) => startDragFromBank(e, wordData, el), { passive: false });
+
+    wordsEl.appendChild(el);
+  });
+}
+
+// ═══════════════════════════════════════════════════
+//  PUNCTUATION TRAY
+// ═══════════════════════════════════════════════════
+
+function buildPunctTray() {
+  const tray = document.getElementById('punctTray');
+  // Keep the label
+  while (tray.children.length > 1) tray.removeChild(tray.lastChild);
+
+  ALL_PUNCT.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'punct-mark';
+    el.dataset.punct = p;
+    el.textContent = p;
+    el.title = getPunctName(p);
+
+    const isUnlocked = DEV_MODE || state.unlockedPunct.has(p);
+    if (!isUnlocked) el.classList.add('locked-mark');
+
+    if (isUnlocked) {
+      el.addEventListener('mousedown', (e) => startDragPunct(e, p, el));
+      el.addEventListener('touchstart', (e) => startDragPunct(e, p, el), { passive: false });
+    }
+
+    tray.appendChild(el);
+  });
+
+  checkPeriodAvailability();
+}
+
+function getPunctName(p) {
+  const names = { '.':'Period','!':'Exclamation','?':'Question Mark',',':'Comma',';':'Semicolon',':':'Colon','"':'Quote',"'":'Apostrophe','(':'Open Paren',')':'Close Paren','—':'Em Dash','–':'En Dash','…':'Ellipsis' };
+  return names[p] || p;
+}
+
+// ═══════════════════════════════════════════════════
+//  DRAG — from bank
+// ═══════════════════════════════════════════════════
+
+function startDragFromBank(e, wordData, sourceEl) {
+  e.preventDefault();
+  clearInactivityTimer();
+
+  const pos = getEventPos(e);
+  const rect = sourceEl.getBoundingClientRect();
+
+  // Create floating block
+  const newWordData = {
+    ...wordData,
+    id: state.idCounter++,
+    displayText: wordData.text,
+  };
+
+  const el = document.createElement('div');
+  el.className = `word-block ${getTypeClass(wordData.subtype)} dragging`;
+  if (isLightText(wordData.subtype)) el.classList.add('light-text');
+  el.id = `block-${newWordData.id}`;
+  el.style.left = `${rect.left}px`;
+  el.style.top = `${rect.top}px`;
+  el.style.position = 'fixed';
+  el.style.zIndex = '9000';
+
+  const textSpan = document.createElement('span');
+  textSpan.className = 'block-text';
+  textSpan.textContent = newWordData.displayText;
+  el.appendChild(textSpan);
+
+  document.body.appendChild(el);
+
+  state.dragging = {
+    el,
+    wordData: newWordData,
+    offsetX: pos.x - rect.left,
+    offsetY: pos.y - rect.top,
+    fromBank: true,
+    sourceRailId: null,
+  };
+}
+
+// ═══════════════════════════════════════════════════
+//  DRAG — punctuation
+// ═══════════════════════════════════════════════════
+
+function startDragPunct(e, punct, sourceEl) {
+  e.preventDefault();
+  clearInactivityTimer();
+
+  const pos = getEventPos(e);
+  const rect = sourceEl.getBoundingClientRect();
+
+  const el = document.createElement('div');
+  el.className = 'punct-mark';
+  el.style.position = 'fixed';
+  el.style.left = `${rect.left}px`;
+  el.style.top = `${rect.top}px`;
+  el.style.zIndex = '9000';
+  el.style.cursor = 'grabbing';
+  el.textContent = punct;
+  el.dataset.punct = punct;
+  document.body.appendChild(el);
+
+  state.dragging = {
+    el,
+    isPunct: true,
+    punct,
+    offsetX: pos.x - rect.left,
+    offsetY: pos.y - rect.top,
+    fromBank: false,
+    sourceRailId: null,
+  };
+}
+
+// ═══════════════════════════════════════════════════
+//  DRAG — from rail
+// ═══════════════════════════════════════════════════
+
+function startDragFromRail(e, wordData, railId) {
+  e.preventDefault();
+  clearInactivityTimer();
+
+  const el = document.getElementById(`block-${wordData.id}`);
+  if (!el) return;
+
+  const pos = getEventPos(e);
+  const rect = el.getBoundingClientRect();
+
+  // Remove from rail
+  const rail = getRailById(railId);
+  if (rail && !rail.isLocked) {
+    const idx = rail.words.findIndex(w => w.id === wordData.id);
+    if (idx !== -1) {
+      rail.words.splice(idx, 1);
+      updateRailAnalysis(rail);
+      recalcRailScore(rail);
+      layoutRailAnimated(rail, idx);
+      stopJitter(railId);
+
+      // Remove from DOM rail, make fixed
+      el.style.position = 'fixed';
+      el.style.left = `${rect.left}px`;
+      el.style.top = `${rect.top}px`;
+      el.style.zIndex = '9000';
+      el.classList.add('dragging');
+      el.classList.remove('breathing');
+      document.body.appendChild(el);
+
+      state.dragging = {
+        el,
+        wordData,
+        offsetX: pos.x - rect.left,
+        offsetY: pos.y - rect.top,
+        fromBank: false,
+        sourceRailId: railId,
+      };
+
+      checkPeriodAvailability();
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  DRAG — move
+// ═══════════════════════════════════════════════════
+
+function onDragMove(e) {
+  if (!state.dragging) return;
+  const pos = getEventPos(e);
+  if (e.cancelable) e.preventDefault();
+
+  const { el, offsetX, offsetY } = state.dragging;
+  const newX = pos.x - offsetX;
+  const newY = pos.y - offsetY;
+
+  el.style.left = `${newX}px`;
+  el.style.top  = `${newY}px`;
+
+  // Check discard zone
+  const discardZone = document.getElementById('discardZone');
+  const discardRect = discardZone.getBoundingClientRect();
+  const cx = newX + (el.offsetWidth / 2);
+  const cy = newY + (el.offsetHeight / 2);
+  const overDiscard = cx > discardRect.left && cx < discardRect.right && cy > discardRect.top && cy < discardRect.bottom;
+  discardZone.classList.toggle('active-target', overDiscard);
+
+  if (!state.dragging.isPunct) {
+    checkMagnetism(newX, newY, el);
+  } else {
+    checkPunctMagnetism(newX, newY);
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  MAGNETISM CHECK
+// ═══════════════════════════════════════════════════
+
+function checkMagnetism(x, y, el) {
+  // Clear all field states
+  document.querySelectorAll('.word-block.in-field-attract, .word-block.in-field-repel').forEach(b => {
+    b.classList.remove('in-field-attract', 'in-field-repel');
+  });
+
+  if (!state.dragging || state.dragging.isPunct) return;
+
+  const { wordData } = state.dragging;
+  const dragCX = x + (el.offsetWidth / 2);
+  const dragCY = y + (el.offsetHeight / 2);
+
+  let closestRail = null;
+  let closestDist = Infinity;
+  let closestResult = null;
+
+  state.rails.forEach(rail => {
+    if (rail.isLocked) return;
+
+    const railEl = document.getElementById(`rail-${rail.id}`);
+    if (!railEl) return;
+    const railRect = railEl.getBoundingClientRect();
+    const railMidY = railRect.top + railRect.height / 2;
+
+    // Is the block vertically near this rail?
+    const vertDist = Math.abs(dragCY - railMidY);
+    if (vertDist > 80) return;
+
+    // Check against each word on rail, or the empty rail itself
+    if (rail.words.length === 0) {
+      const railCX = railRect.left + railRect.width / 2;
+      const dist = Math.sqrt(Math.pow(dragCX - railCX, 2) + Math.pow(dragCY - railMidY, 2));
+      if (dist < FIELD_DISTANCE && dist < closestDist) {
+        closestDist = dist;
+        closestRail = rail;
+        closestResult = { type: 'empty', dist };
+      }
+    } else {
+      rail.words.forEach(w => {
+        const targetEl = document.getElementById(`block-${w.id}`);
+        if (!targetEl) return;
+        const tRect = targetEl.getBoundingClientRect();
+        const tCX = tRect.left + tRect.width / 2;
+        const tCY = tRect.top + tRect.height / 2;
+        const dist = Math.sqrt(Math.pow(dragCX - tCX, 2) + Math.pow(dragCY - tCY, 2));
+        const side = dragCX < tCX ? 'right' : 'left'; // dragged is to left of target
+
+        if (dist < FIELD_DISTANCE && dist < closestDist) {
+          closestDist = dist;
+          closestRail = rail;
+          closestResult = { type: 'word', word: w, targetEl, dist, side };
+        }
+      });
+    }
+  });
+
+  if (!closestRail || !closestResult) return;
+
+  if (closestResult.type === 'empty') {
+    if (closestDist < SNAP_DISTANCE) {
+      snapToRail(closestRail, null);
+    }
+    return;
+  }
+
+  const { targetEl, side, dist } = closestResult;
+  const rule = canConnect(wordData.subtype, closestResult.word.subtype, side);
+
+  if (rule === 'attract' || closestResult.type === 'empty') {
+    if (dist < FIELD_DISTANCE) {
+      targetEl.classList.add('in-field-attract');
+    }
+    if (dist < SNAP_DISTANCE) {
+      snapToRail(closestRail, closestResult);
+    }
+  } else if (rule === 'repel' && dist < REPEL_DISTANCE) {
+    targetEl.classList.add('in-field-repel');
+    guidedBounce(closestResult.targetEl);
+  }
+}
+
+function checkPunctMagnetism(x, y) {
+  const el = state.dragging?.el;
+  if (!el) return;
+  const punct = state.dragging.punct;
+
+  document.querySelectorAll('.word-block.in-field-attract').forEach(b => b.classList.remove('in-field-attract'));
+
+  // Only period/!/? can lock sentences
+  if (!['.','!','?'].includes(punct)) return;
+
+  const dragCX = x + 14;
+  const dragCY = y + 14;
+
+  state.rails.forEach(rail => {
+    if (rail.isLocked || !rail.hasNoun || !rail.hasVerb) return;
+    if (rail.words.length === 0) return;
+
+    // Get rightmost block
+    const last = rail.words[rail.words.length - 1];
+    const lastEl = document.getElementById(`block-${last.id}`);
+    if (!lastEl) return;
+    const lRect = lastEl.getBoundingClientRect();
+    const lRX = lRect.right;
+    const lCY = lRect.top + lRect.height / 2;
+
+    const dist = Math.sqrt(Math.pow(dragCX - lRX, 2) + Math.pow(dragCY - lCY, 2));
+
+    if (dist < FIELD_DISTANCE) {
+      lastEl.classList.add('in-field-attract');
+    }
+    if (dist < SNAP_DISTANCE) {
+      lockSentence(rail, punct);
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════
+//  SNAP TO RAIL
+// ═══════════════════════════════════════════════════
+
+function snapToRail(rail, result) {
+  if (!state.dragging || state.dragging.isPunct) return;
+
+  const { el, wordData } = state.dragging;
+  state.dragging = null;
+
+  // Clear field states
+  document.querySelectorAll('.in-field-attract,.in-field-repel').forEach(b => {
+    b.classList.remove('in-field-attract','in-field-repel');
+  });
+
+  // Determine insert position
+  let insertIndex = rail.words.length;
+  if (result && result.type === 'word') {
+    const idx = rail.words.findIndex(w => w.id === result.word.id);
+    if (idx !== -1) {
+      // Insert left or right of target
+      insertIndex = result.side === 'right' ? idx : idx + 1;
+    }
+  }
+
+  // Insert into rail
+  rail.words.splice(insertIndex, 0, wordData);
+  updateRailAnalysis(rail);
+  recalcRailScore(rail);
+
+  // Move el into rail DOM
+  const railEl = document.getElementById(`rail-${rail.id}`);
+  el.style.position = 'absolute';
+  el.style.zIndex = '10';
+  el.classList.remove('dragging');
+  el.classList.add('snapped');
+  el.dataset.railId = rail.id;
+  railEl.appendChild(el);
+
+  // Add drag listeners to block
+  el.addEventListener('mousedown', (e) => {
+    if (rail.isLocked) return;
+    startDragFromRail(e, wordData, rail.id);
+  });
+  el.addEventListener('touchstart', (e) => {
+    if (rail.isLocked) return;
+    startDragFromRail(e, wordData, rail.id);
+  }, { passive: false });
+
+  // Animate into position
+  layoutRailAnimated(rail, insertIndex);
+
+  // Update verb agreement
+  if (rail.subjectAgreement) updateVerbAgreement(rail);
+
+  // Start jitter if circuit not complete, breathe if complete
+  setTimeout(() => {
+    if (rail.hasNoun && rail.hasVerb) {
+      startJitter(rail.id);
+      checkPeriodAvailability();
+    }
+  }, SPRING_DURATION + 50);
+
+  // If rail is full (has words) ensure there's always an empty rail below
+  ensureEmptyRail();
+  resetInactivityTimer();
+}
+
+function updateRailAnalysis(rail) {
+  rail.hasNoun = rail.words.some(w => isNounType(w.subtype));
+  rail.hasVerb = rail.words.some(w => isVerbType(w.subtype));
+
+  const subjectWord = rail.words.find(w => isNounType(w.subtype));
+  rail.subjectAgreement = subjectWord ? subjectWord.agreement : null;
+}
+
+function ensureEmptyRail() {
+  const hasEmpty = state.rails.some(r => r.words.length === 0 && !r.isLocked);
+  if (!hasEmpty) createRail();
+}
+
+// ═══════════════════════════════════════════════════
+//  GUIDED BOUNCE
+// ═══════════════════════════════════════════════════
+
+function guidedBounce(targetEl) {
+  if (!state.dragging) return;
+  const { el } = state.dragging;
+  const tRect = targetEl.getBoundingClientRect();
+
+  // Arc to the correct side
+  const destX = tRect.right + 20;
+  const destY = tRect.top;
+
+  el.style.transition = `left 0.5s var(--spring), top 0.5s ease-out`;
+  el.style.left = `${destX}px`;
+  el.style.top  = `${destY}px`;
+  setTimeout(() => { if (el) el.style.transition = ''; }, 500);
+
+  state.dragging = null;
+  document.getElementById('discardZone').classList.remove('active-target');
+}
+
+// ═══════════════════════════════════════════════════
+//  LOCK SENTENCE
+// ═══════════════════════════════════════════════════
+
+function lockSentence(rail, punct) {
+  if (!state.dragging) return;
+  const punctEl = state.dragging.el;
+  state.dragging = null;
+  punctEl.remove();
+
+  // Clear magnetism
+  document.querySelectorAll('.in-field-attract,.in-field-repel').forEach(b => {
+    b.classList.remove('in-field-attract','in-field-repel');
+  });
+
+  // Stop jitter
+  stopJitter(rail.id);
+
+  // Lock the rail
+  rail.isLocked = true;
+
+  // Build sentence text
+  const sentenceText = rail.words.map(w => w.displayText || w.text).join(' ') + punct;
+
+  // Visual lock
+  const railEl = document.getElementById(`rail-${rail.id}`);
+  rail.words.forEach(w => {
+    const el = document.getElementById(`block-${w.id}`);
+    if (el) {
+      el.classList.remove('snapped','breathing');
+      el.classList.add('locked');
+      el.style.transform = 'translate(0,0) scale(1)';
+    }
+  });
+
+  // Flash
+  const flash = document.getElementById('lockFlash');
+  flash.classList.add('flash');
+  setTimeout(() => flash.classList.remove('flash'), 500);
+
+  // Award XP
+  const xpEarned = rail.potentialScore;
+  const xpPos = railEl ? railEl.getBoundingClientRect() : { left: window.innerWidth/2, top: window.innerHeight/2 };
+  showFloatingXP(xpEarned, xpPos.left + 40, xpPos.top);
+  addXP(xpEarned);
+
+  // Send to vault after brief pause
+  setTimeout(() => {
+    addToVault(sentenceText, xpEarned);
+
+    // Remove locked rail from canvas
+    const idx = state.rails.findIndex(r => r.id === rail.id);
+    if (idx !== -1) {
+      state.rails.splice(idx, 1);
+      railEl.remove();
+      renderRails();
+    }
+    ensureEmptyRail();
+    checkPeriodAvailability();
+    saveState();
+  }, 800);
+
+  checkPeriodAvailability();
+}
+
+// ═══════════════════════════════════════════════════
+//  DRAG END
+// ═══════════════════════════════════════════════════
+
+function onDragEnd(e) {
+  const discardZone = document.getElementById('discardZone');
+  discardZone.classList.remove('active-target');
+
+  document.querySelectorAll('.in-field-attract,.in-field-repel').forEach(b => {
+    b.classList.remove('in-field-attract','in-field-repel');
+  });
+
+  if (!state.dragging) return;
+
+  const { el, fromBank, sourceRailId, wordData, isPunct } = state.dragging;
+
+  // Check if over discard zone
+  const pos = getEventPos(e);
+  const dRect = discardZone.getBoundingClientRect();
+  const overDiscard = pos.x > dRect.left && pos.x < dRect.right && pos.y > dRect.top && pos.y < dRect.bottom;
+
+  if (overDiscard && !isPunct) {
+    // Discard — remove block, return word to bank
+    el.style.transition = 'all 0.3s ease';
+    el.style.transform = 'scale(0)';
+    el.style.opacity = '0';
+    setTimeout(() => el.remove(), 300);
+    state.dragging = null;
+    resetInactivityTimer();
+    return;
+  }
+
+  if (isPunct) {
+    // Return punct bead to tray
+    el.style.transition = 'all 0.3s ease';
+    el.style.opacity = '0';
+    setTimeout(() => el.remove(), 300);
+    state.dragging = null;
+    checkPeriodAvailability();
+    return;
+  }
+
+  // No snap happened — find nearest rail or create new one
+  const pos2 = { x: parseFloat(el.style.left), y: parseFloat(el.style.top) };
+  const elCY = pos2.y + (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--block-h')) / 2);
+
+  // Find nearest unlocked rail by Y proximity
+  let nearestRail = null;
+  let nearestDist = Infinity;
+  let nearestRailEl = null;
+
+  state.rails.forEach(r => {
+    if (r.isLocked) return;
+    const rEl = document.getElementById(`rail-${r.id}`);
+    if (!rEl) return;
+    const rRect = rEl.getBoundingClientRect();
+    const rCY = rRect.top + rRect.height / 2;
+    const dist = Math.abs(elCY - rCY);
+    if (dist < nearestDist) {
+      nearestDist = dist;
+      nearestRail = r;
+      nearestRailEl = rEl;
+    }
+  });
+
+  if (nearestRail && nearestDist < 100) {
+    // Snap to nearest rail
+    nearestRail.words.push(wordData);
+    updateRailAnalysis(nearestRail);
+    recalcRailScore(nearestRail);
+
+    el.style.position = 'absolute';
+    el.style.zIndex = '10';
+    el.classList.remove('dragging');
+    el.classList.add('snapped');
+    nearestRailEl.appendChild(el);
+
+    el.addEventListener('mousedown', (ev) => { if (!nearestRail.isLocked) startDragFromRail(ev, wordData, nearestRail.id); });
+    el.addEventListener('touchstart', (ev) => { if (!nearestRail.isLocked) startDragFromRail(ev, wordData, nearestRail.id); }, { passive: false });
+
+    layoutRailAnimated(nearestRail, nearestRail.words.length - 1);
+    if (nearestRail.subjectAgreement) updateVerbAgreement(nearestRail);
+    if (nearestRail.hasNoun && nearestRail.hasVerb) {
+      setTimeout(() => startJitter(nearestRail.id), SPRING_DURATION + 50);
+      checkPeriodAvailability();
+    }
+  } else {
+    // Return to bank (float back and disappear)
+    el.style.transition = 'all 0.4s ease';
+    el.style.opacity = '0';
+    el.style.transform = 'scale(0.8)';
+    setTimeout(() => el.remove(), 400);
+  }
+
+  state.dragging = null;
+  ensureEmptyRail();
+  resetInactivityTimer();
+}
+
+// ═══════════════════════════════════════════════════
+//  VAULT
+// ═══════════════════════════════════════════════════
+
+function addToVault(text, xp) {
+  const entry = { text, xp, timestamp: Date.now() };
+  state.vaultSentences.unshift(entry);
+
+  const vaultEl = document.getElementById('vaultSentences');
+  const emptyEl = vaultEl.querySelector('.vault-empty');
+  if (emptyEl) emptyEl.remove();
+
+  const entryEl = document.createElement('div');
+  entryEl.className = 'vault-entry new';
+  entryEl.innerHTML = `
+    <div>${text}</div>
+    <div class="vault-entry-xp">+${xp} XP</div>
+  `;
+
+  // Pull back to rail on click
+  entryEl.addEventListener('click', () => pullFromVault(entry, entryEl));
+  vaultEl.insertBefore(entryEl, vaultEl.firstChild);
+
+  const countEl = document.getElementById('vaultCount');
+  countEl.textContent = `${state.vaultSentences.length} sentence${state.vaultSentences.length !== 1 ? 's' : ''}`;
+}
+
+function pullFromVault(entry, entryEl) {
+  // Parse sentence back into words (simple space split, remove terminal punct)
+  const text = entry.text;
+  const lastChar = text[text.length - 1];
+  const terminalPunct = ['.','!','?'].includes(lastChar) ? lastChar : null;
+  const cleanText = terminalPunct ? text.slice(0, -1) : text;
+  const words = cleanText.split(' ');
+
+  // Create a new rail with ghost words
+  const rail = createRail();
+  const railEl = document.getElementById(`rail-${rail.id}`);
+
+  words.forEach((word, i) => {
+    const wordData = {
+      id: state.idCounter++,
+      text: word,
+      displayText: word,
+      subtype: 'noun', // approximate — pulled sentences are display only
+    };
+    rail.words.push(wordData);
+
+    const el = createWordBlockEl(wordData, rail.id);
+    el.style.opacity = '0.6';
+    el.style.position = 'absolute';
+    railEl.appendChild(el);
+
+    el.addEventListener('mousedown', (ev) => { if (!rail.isLocked) startDragFromRail(ev, wordData, rail.id); });
+    el.addEventListener('touchstart', (ev) => { if (!rail.isLocked) startDragFromRail(ev, wordData, rail.id); }, { passive: false });
+  });
+
+  updateRailAnalysis(rail);
+  setTimeout(() => layoutRail(rail), 50);
+
+  // Remove from vault display
+  state.vaultSentences = state.vaultSentences.filter(e => e.timestamp !== entry.timestamp);
+  entryEl.remove();
+  const countEl = document.getElementById('vaultCount');
+  countEl.textContent = `${state.vaultSentences.length} sentence${state.vaultSentences.length !== 1 ? 's' : ''}`;
+  if (state.vaultSentences.length === 0) {
+    document.getElementById('vaultSentences').innerHTML = '<div class="vault-empty">Your sentences will collect here.<br>Build something.</div>';
+  }
+
+  startJitter(rail.id);
+  saveState();
+}
+
+// ═══════════════════════════════════════════════════
+//  XP & LEVELING
+// ═══════════════════════════════════════════════════
+
+function addXP(amount) {
+  if (DEV_MODE) return; // Don't level up in dev mode
+  state.xp += amount;
+  updateXPBar();
+  checkLevelUp();
+  saveState();
+}
+
+function updateXPBar() {
+  const currentLevelDef = LEVELS.find(l => l.level === state.level) || LEVELS[0];
+  const nextLevelDef = LEVELS.find(l => l.level === state.level + 1);
+
+  const xpMin = currentLevelDef.xpRequired;
+  const xpMax = nextLevelDef ? nextLevelDef.xpRequired : currentLevelDef.xpRequired + 100;
+  const progress = nextLevelDef ? Math.min((state.xp - xpMin) / (xpMax - xpMin), 1) : 1;
+
+  document.getElementById('xpFill').style.width = `${progress * 100}%`;
+  document.getElementById('levelLabel').textContent = `Level ${state.level}`;
+  document.getElementById('xpLabel').textContent = nextLevelDef
+    ? `${state.xp} / ${xpMax} XP`
+    : `${state.xp} XP`;
+}
+
+function checkLevelUp() {
+  const nextLevelDef = LEVELS.find(l => l.level === state.level + 1);
+  if (!nextLevelDef) return;
+  if (state.xp >= nextLevelDef.xpRequired) {
+    state.level = nextLevelDef.level;
+    applyLevelUnlocks(state.level);
+    buildBankTabs();
+    buildBankWords();
+    buildPunctTray();
+    showLevelUp(nextLevelDef);
+  }
+}
+
+function showLevelUp(levelDef) {
+  document.getElementById('levelUpNum').textContent = levelDef.level;
+  document.getElementById('levelUpUnlock').textContent = levelDef.unlockLabel;
+  document.getElementById('levelUpOverlay').classList.add('show');
+}
+
+function dismissLevelUp() {
+  document.getElementById('levelUpOverlay').classList.remove('show');
+}
+
+function showFloatingXP(amount, x, y) {
+  const el = document.createElement('div');
+  el.className = 'floating-xp';
+  el.textContent = `+${amount}`;
+  el.style.left = `${x}px`;
+  el.style.top  = `${y}px`;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => {
+    el.classList.add('animate');
+    setTimeout(() => el.remove(), 1000);
+  });
+}
+
+// ═══════════════════════════════════════════════════
+//  INACTIVITY — wiggle invitation
+// ═══════════════════════════════════════════════════
+
+function resetInactivityTimer() {
+  clearInactivityTimer();
+  state.inactivityTimer = setTimeout(() => {
+    wiggleNounBank();
+  }, 3000);
+}
+
+function clearInactivityTimer() {
+  if (state.inactivityTimer) {
+    clearTimeout(state.inactivityTimer);
+    state.inactivityTimer = null;
+  }
+}
+
+function wiggleNounBank() {
+  // Switch to nouns tab if not already there
+  const nounTab = document.querySelector('.bank-tab[data-type="nouns"]');
+  if (nounTab) {
+    nounTab.classList.add('wiggling');
+    setTimeout(() => nounTab.classList.remove('wiggling'), 700);
+  }
+
+  // Wiggle first noun in bank
+  const firstNoun = document.querySelector('.bank-word');
+  if (firstNoun) {
+    firstNoun.classList.add('wiggling');
+    setTimeout(() => firstNoun.classList.remove('wiggling'), 700);
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  UTILITIES
+// ═══════════════════════════════════════════════════
+
+function getEventPos(e) {
+  if (e.touches && e.touches.length > 0) {
+    return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }
+  if (e.changedTouches && e.changedTouches.length > 0) {
+    return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+  }
+  return { x: e.clientX, y: e.clientY };
+}
+
+// ═══════════════════════════════════════════════════
+//  GLOBAL EVENT LISTENERS
+// ═══════════════════════════════════════════════════
+
+window.addEventListener('mousemove', onDragMove);
+window.addEventListener('mouseup', onDragEnd);
+window.addEventListener('touchmove', onDragMove, { passive: false });
+window.addEventListener('touchend', onDragEnd);
+
+// ═══════════════════════════════════════════════════
+//  COLD OPEN — first rail setup
+// ═══════════════════════════════════════════════════
+
+function coldOpen() {
+  // Hide dev badge if not dev mode
+  if (!DEV_MODE) {
+    document.getElementById('devBadge').style.display = 'none';
+  }
+
+  // Create first rail
+  const rail = createRail();
+
+  // In non-dev mode, pre-seed with "I" noun to guide first action
+  if (!DEV_MODE) {
+    const seedNoun = { ...WORD_BANK.nouns[0], id: state.idCounter++, displayText: WORD_BANK.nouns[0].text };
+    rail.words.push(seedNoun);
+    updateRailAnalysis(rail);
+
+    const railEl = document.getElementById(`rail-${rail.id}`);
+    const el = createWordBlockEl(seedNoun, rail.id);
+    el.style.position = 'absolute';
+    railEl.appendChild(el);
+    el.addEventListener('mousedown', (ev) => startDragFromRail(ev, seedNoun, rail.id));
+    el.addEventListener('touchstart', (ev) => startDragFromRail(ev, seedNoun, rail.id), { passive: false });
+
+    setTimeout(() => {
+      layoutRail(rail);
+      // Wiggle the noun block invitingly
+      setTimeout(() => {
+        el.classList.add('wiggling');
+        setTimeout(() => el.classList.remove('wiggling'), 700);
+      }, 800);
+    }, 100);
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════
+
+function init() {
+  loadState();
+  buildBankTabs();
+  buildBankWords();
+  buildPunctTray();
+  coldOpen();
+  updateXPBar();
+  resetInactivityTimer();
+
+  // Restore vault entries
+  if (state.vaultSentences.length > 0) {
+    const vaultEl = document.getElementById('vaultSentences');
+    vaultEl.innerHTML = '';
+    state.vaultSentences.forEach(entry => {
+      const entryEl = document.createElement('div');
+      entryEl.className = 'vault-entry';
+      entryEl.innerHTML = `<div>${entry.text}</div><div class="vault-entry-xp">+${entry.xp} XP</div>`;
+      entryEl.addEventListener('click', () => pullFromVault(entry, entryEl));
+      vaultEl.appendChild(entryEl);
+    });
+    document.getElementById('vaultCount').textContent = `${state.vaultSentences.length} sentence${state.vaultSentences.length !== 1 ? 's' : ''}`;
+  }
+}
+
+window.addEventListener('load', init);
+</script>
+</body>
+</html>
