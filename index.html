@@ -991,6 +991,7 @@ let state = {
   dragBlocked: false,
   physicsLoops: {},
   activeTab: 'nouns',
+  starterMode: false,
   idCounter: 0,
   inactivityTimer: null,
 };
@@ -1012,6 +1013,7 @@ function loadState() {
     state.level = LEVELS.length; state.xp = 9999;
     Object.keys(WORD_BANK).forEach(k => state.unlockedTypes.add(k));
     ALL_PUNCT.forEach(p => state.unlockedPunct.add(p));
+    state.starterMode = false;
     return;
   }
   try {
@@ -1023,8 +1025,11 @@ function loadState() {
       state.unlockedTypes = new Set(save.unlockedTypes || []);
       state.unlockedPunct = new Set(save.unlockedPunct || ["."]);
       state.vaultSentences = save.vaultSentences || [];
+      state.starterMode = false;
     } else {
       applyLevelUnlocks(1);
+      state.starterMode = true;
+      state.activeTab = 'nouns';
     }
   } catch(e) { applyLevelUnlocks(1); }
 }
@@ -1360,7 +1365,11 @@ function buildBankTabs() {
 function buildBankWords() {
   const wordsEl = document.getElementById('bankWords');
   wordsEl.innerHTML = '';
-  (WORD_BANK[state.activeTab] || []).forEach(wordData => {
+  const wordsToRender = state.starterMode
+    ? [{ text: "I", subtype: "pronoun", agreement: "1st-singular" }]
+    : (WORD_BANK[state.activeTab] || []);
+
+  wordsToRender.forEach(wordData => {
     const el = document.createElement('div');
     el.className = `bank-word ${getTypeClass(wordData.subtype)}`;
     if (isLightText(wordData.subtype)) el.classList.add('light-text');
@@ -1408,6 +1417,13 @@ function getPunctName(p) {
 function startDragFromBank(e, wordData, sourceEl) {
   e.preventDefault();
   clearInactivityTimer();
+
+  if (state.starterMode) {
+    state.starterMode = false;
+    buildBankTabs();
+    buildBankWords();
+  }
+
   const pos  = getEventPos(e);
   const rect = sourceEl.getBoundingClientRect();
   const newWordData = { ...wordData, id: state.idCounter++, displayText: wordData.text };
@@ -2133,23 +2149,7 @@ window.addEventListener('touchend',  onDragEnd);
 
 function coldOpen() {
   document.getElementById('devBadge').classList.toggle('dev-off', !DEV_MODE);
-  const rail = createRail();
-  if (!DEV_MODE) {
-    const seedWord   = WORD_BANK.pronouns[0]; // "I"
-    const seedNoun   = { ...seedWord, id: state.idCounter++, displayText: seedWord.text };
-    rail.words.push(seedNoun);
-    updateRailAnalysis(rail);
-    const railEl = document.getElementById(`rail-${rail.id}`);
-    const el     = createWordBlockEl(seedNoun, rail.id);
-    el.style.position = 'absolute';
-    railEl.appendChild(el);
-    el.addEventListener('mousedown', ev => startDragFromRail(ev, seedNoun, rail.id));
-    el.addEventListener('touchstart', ev => startDragFromRail(ev, seedNoun, rail.id), { passive: false });
-    setTimeout(() => {
-      layoutRail(rail);
-      setTimeout(() => { el.classList.add('wiggling'); setTimeout(() => el.classList.remove('wiggling'), 700); }, 800);
-    }, 100);
-  }
+  createRail();
 }
 
 // ═══════════════════════════════════════════════════
