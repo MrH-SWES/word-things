@@ -325,6 +325,36 @@
       transition: opacity 0.1s ease;
     }
 
+    /* ── PLURAL TOGGLE ── */
+    .plural-toggle {
+      position: absolute;
+      top: -9px;
+      right: -6px;
+      height: 16px;
+      padding: 0 5px;
+      border-radius: 8px;
+      font-size: 0.48rem;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      background: rgba(255,255,255,0.28);
+      border: 1px solid rgba(255,255,255,0.5);
+      color: rgba(255,255,255,0.95);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      pointer-events: all;
+      white-space: nowrap;
+      transition: background 0.15s ease, transform 0.1s ease;
+      z-index: 20;
+    }
+    .plural-toggle:hover {
+      background: rgba(255,255,255,0.42);
+      transform: scale(1.08);
+    }
+    .plural-toggle:active { transform: scale(0.94); }
+    .word-block.locked .plural-toggle { display: none; }
+
     /* ── PUNCTUATION TRAY ── */
     .punct-tray {
       position: absolute;
@@ -813,13 +843,13 @@ const WORD_BANK = {
     { text: "happy",  subtype: "adjective" },
   ],
   nouns: [
-    { text: "dog",   subtype: "noun", agreement: "3rd-singular" },
-    { text: "cat",   subtype: "noun", agreement: "3rd-singular" },
-    { text: "orca",  subtype: "noun", agreement: "3rd-singular" },
-    { text: "bird",  subtype: "noun", agreement: "3rd-singular" },
-    { text: "water", subtype: "noun", agreement: "3rd-singular" },
-    { text: "tree",  subtype: "noun", agreement: "3rd-singular" },
-    { text: "kids",  subtype: "noun", agreement: "3rd-plural" },
+    { text: "dog",   subtype: "noun", agreement: "3rd-singular", singular: "dog",   plural: "dogs"   },
+    { text: "cat",   subtype: "noun", agreement: "3rd-singular", singular: "cat",   plural: "cats"   },
+    { text: "orca",  subtype: "noun", agreement: "3rd-singular", singular: "orca",  plural: "orcas"  },
+    { text: "bird",  subtype: "noun", agreement: "3rd-singular", singular: "bird",  plural: "birds"  },
+    { text: "water", subtype: "noun", agreement: "3rd-singular", singular: "water", plural: "waters", uncountable: true },
+    { text: "tree",  subtype: "noun", agreement: "3rd-singular", singular: "tree",  plural: "trees"  },
+    { text: "kids",  subtype: "noun", agreement: "3rd-plural",   singular: "kid",   plural: "kids"   },
   ],
   pronouns: [
     { text: "I",    subtype: "pronoun", agreement: "1st-singular" },
@@ -889,9 +919,9 @@ const SCORE_VALUES = {
 };
 
 // ── PHYSICS CONSTANTS ──
-const SNAP_DISTANCE   = 88;
-const FIELD_DISTANCE  = 155;
-const REPEL_DISTANCE  = 78;
+const SNAP_DISTANCE   = 90;   // ~1 card width before snapping (avg block ~80px + gap)
+const FIELD_DISTANCE  = 130;  // attract glow range
+const REPEL_DISTANCE  = 56;
 const JITTER_START    = 2.0;
 const JITTER_DECAY    = 0.87;
 const SPRING_DURATION = 200;
@@ -1018,6 +1048,7 @@ function createRail() {
     id, words: [], isLocked: false,
     potentialScore: 0, jitterAmplitude: 0, scalePulse: 1,
     hasNoun: false, hasVerb: false, subjectAgreement: null,
+    railOffset: RAIL_PADDING, // x-position of leftmost word on the rail
   };
   state.rails.push(rail);
   renderRails();
@@ -1095,10 +1126,27 @@ function createWordBlockEl(wordData, railId) {
   el.dataset.wordId = wordData.id;
   el.dataset.railId = railId;
   el.dataset.subtype = wordData.subtype;
+  el.style.position = 'relative';
   const textSpan = document.createElement('span');
   textSpan.className = 'block-text';
   textSpan.textContent = wordData.displayText || wordData.text;
   el.appendChild(textSpan);
+
+  // Add plural toggle for nouns that have singular/plural forms
+  if (wordData.subtype === 'noun' && wordData.singular && wordData.plural && !wordData.uncountable) {
+    const toggle = document.createElement('button');
+    toggle.className = 'plural-toggle';
+    const isPlural = wordData.agreement === '3rd-plural';
+    toggle.textContent = isPlural ? 'PL' : 'SG';
+    toggle.title = isPlural ? 'Switch to singular' : 'Switch to plural';
+    toggle.addEventListener('mousedown', ev => ev.stopPropagation());
+    toggle.addEventListener('touchstart', ev => ev.stopPropagation(), { passive: true });
+    toggle.addEventListener('click', ev => {
+      ev.stopPropagation();
+      toggleNounNumber(wordData, railId);
+    });
+    el.appendChild(toggle);
+  }
   return el;
 }
 
@@ -1114,18 +1162,33 @@ const RAIL_PADDING = 14;
 function layoutRail(rail) {
   const railEl = document.getElementById(`rail-${rail.id}`);
   if (!railEl) return;
-  let x = RAIL_PADDING;
+  let x = rail.railOffset !== undefined ? rail.railOffset : RAIL_PADDING;
   const railH = 72;
   const blockH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--block-h')) || 48;
   const topOffset = (railH - blockH) / 2;
-  rail.words.forEach(wordData => {
+  rail.words.forEach((wordData, idx) => {
     const el = document.getElementById(`block-${wordData.id}`);
     if (!el) return;
     const w = el.offsetWidth || estimateBlockWidth(wordData.displayText || wordData.text);
     el.style.left = `${x}px`;
     el.style.top  = `${topOffset}px`;
     x += w + BLOCK_GAP;
+    applyAutoCapitalize(rail, wordData, idx);
   });
+}
+
+function applyAutoCapitalize(rail, wordData, idx) {
+  const el = document.getElementById(`block-${wordData.id}`);
+  if (!el) return;
+  const span = el.querySelector('.block-text');
+  if (!span) return;
+  const baseText = wordData.displayText || wordData.text;
+  if (idx === 0 && rail.words.length > 0) {
+    // capitalize first letter if not already "I" (which is always caps)
+    span.textContent = baseText.charAt(0).toUpperCase() + baseText.slice(1);
+  } else {
+    span.textContent = baseText;
+  }
 }
 
 function estimateBlockWidth(text) { return text.length * 10 + 30; }
@@ -1134,8 +1197,8 @@ function layoutRailAnimated(rail) {
   const blockH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--block-h')) || 48;
   const railH = 72;
   const topOffset = (railH - blockH) / 2;
-  let x = RAIL_PADDING;
-  rail.words.forEach(wordData => {
+  let x = rail.railOffset !== undefined ? rail.railOffset : RAIL_PADDING;
+  rail.words.forEach((wordData, idx) => {
     const el = document.getElementById(`block-${wordData.id}`);
     if (!el) return;
     const w = el.offsetWidth || estimateBlockWidth(wordData.displayText || wordData.text);
@@ -1144,6 +1207,7 @@ function layoutRailAnimated(rail) {
     el.style.top  = `${topOffset}px`;
     setTimeout(() => { el.style.transition = ''; }, SPRING_DURATION + 50);
     x += w + BLOCK_GAP;
+    applyAutoCapitalize(rail, wordData, idx);
   });
 }
 
@@ -1189,6 +1253,46 @@ function stopJitter(railId) {
     const el = document.getElementById(`block-${w.id}`);
     if (el) el.style.transform = 'translate(0,0) scale(1)';
   });
+}
+
+// ═══════════════════════════════════════════════════
+//  NOUN NUMBER TOGGLE
+// ═══════════════════════════════════════════════════
+
+function toggleNounNumber(wordData, railId) {
+  const rail = getRailById(railId);
+  if (!rail || rail.isLocked) return;
+
+  const isCurrentlyPlural = wordData.agreement === '3rd-plural';
+  const newAgreement = isCurrentlyPlural ? '3rd-singular' : '3rd-plural';
+  const newText = isCurrentlyPlural ? wordData.singular : wordData.plural;
+
+  wordData.agreement = newAgreement;
+  wordData.text = newText;
+  wordData.displayText = newText;
+
+  // Update the block visually with morph flash
+  const el = document.getElementById(`block-${wordData.id}`);
+  if (el) {
+    el.classList.add('morphing');
+    // Update toggle label
+    const toggle = el.querySelector('.plural-toggle');
+    if (toggle) {
+      toggle.textContent = newAgreement === '3rd-plural' ? 'PL' : 'SG';
+      toggle.title = newAgreement === '3rd-plural' ? 'Switch to singular' : 'Switch to plural';
+    }
+    setTimeout(() => {
+      const span = el.querySelector('.block-text');
+      if (span) span.textContent = newText;
+      el.classList.remove('morphing');
+      // Re-apply capitalize if first word
+      const idx = rail.words.findIndex(w => w.id === wordData.id);
+      applyAutoCapitalize(rail, wordData, idx);
+    }, 105);
+  }
+
+  // Re-derive rail agreement from this noun (noun drives the bus)
+  updateRailAnalysis(rail);
 }
 
 // ═══════════════════════════════════════════════════
@@ -1352,26 +1456,54 @@ function startDragFromRail(e, wordData, railId) {
   const pos  = getEventPos(e);
   const rect = el.getBoundingClientRect();
   const rail = getRailById(railId);
-  if (rail && !rail.isLocked) {
-    const idx = rail.words.findIndex(w => w.id === wordData.id);
-    if (idx !== -1) {
-      rail.words.splice(idx, 1);
-      updateRailAnalysis(rail);
-      recalcRailScore(rail);
-      layoutRailAnimated(rail);
-      stopJitter(railId);
-      el.style.position = 'fixed';
-      el.style.left = `${rect.left}px`;
-      el.style.top  = `${rect.top}px`;
-      el.style.zIndex = '9000';
-      el.classList.add('dragging');
-      el.classList.remove('breathing');
-      document.body.appendChild(el);
-      state.dragging = { el, wordData, offsetX: pos.x - rect.left, offsetY: pos.y - rect.top, fromBank: false, sourceRailId: railId, sourceIndex: idx };
-      state.dragBlocked = false;
-      checkPeriodAvailability();
-    }
-  }
+  if (!rail || rail.isLocked) return;
+  const idx = rail.words.findIndex(w => w.id === wordData.id);
+  if (idx === -1) return;
+
+  // Store pending drag — we'll decide individual vs group on first move
+  state.dragging = {
+    el, wordData, railId, idx,
+    offsetX: pos.x - rect.left,
+    offsetY: pos.y - rect.top,
+    startX: pos.x, startY: pos.y,
+    fromBank: false, sourceRailId: railId, sourceIndex: idx,
+    pendingDirection: true, // not yet committed to a drag mode
+    isGroupDrag: false,
+  };
+  state.dragBlocked = false;
+}
+
+function commitIndividualDrag(dragState) {
+  const { el, wordData, railId, idx } = dragState;
+  const rail = getRailById(railId);
+  if (!rail || rail.isLocked) return false;
+  const rect = el.getBoundingClientRect();
+  rail.words.splice(idx, 1);
+  updateRailAnalysis(rail);
+  recalcRailScore(rail);
+  layoutRailAnimated(rail);
+  stopJitter(railId);
+  el.style.position = 'fixed';
+  el.style.left = `${rect.left}px`;
+  el.style.top  = `${rect.top}px`;
+  el.style.zIndex = '9000';
+  el.classList.add('dragging');
+  el.classList.remove('breathing');
+  document.body.appendChild(el);
+  dragState.pendingDirection = false;
+  dragState.isGroupDrag = false;
+  checkPeriodAvailability();
+  return true;
+}
+
+function commitGroupDrag(dragState) {
+  // Group drag: move the rail's railOffset, keeping all words together
+  const rail = getRailById(dragState.railId);
+  if (!rail || rail.isLocked) return false;
+  dragState.pendingDirection = false;
+  dragState.isGroupDrag = true;
+  dragState.groupStartOffset = rail.railOffset !== undefined ? rail.railOffset : RAIL_PADDING;
+  return true;
 }
 
 // ═══════════════════════════════════════════════════
@@ -1419,6 +1551,36 @@ function onDragMove(e) {
   const pos = getEventPos(e);
   if (e.cancelable) e.preventDefault();
   const { el, offsetX, offsetY } = state.dragging;
+
+  // ── Pending direction: decide individual vs group drag ──
+  if (state.dragging.pendingDirection) {
+    const dx = Math.abs(pos.x - state.dragging.startX);
+    const dy = pos.y - state.dragging.startY; // positive = down, negative = up
+    const moved = Math.sqrt(dx*dx + (pos.y - state.dragging.startY)**2);
+    if (moved < 6) return; // wait for intentional movement
+
+    // Dragging UP = lift individual word
+    // Dragging LEFT/RIGHT = move entire group
+    if (dy < -8 || (Math.abs(dy) < 10 && dx < 8)) {
+      // Vertical/upward intent → individual drag
+      if (!commitIndividualDrag(state.dragging)) { state.dragging = null; return; }
+    } else {
+      // Horizontal intent or downward → group drag
+      commitGroupDrag(state.dragging);
+    }
+  }
+
+  // ── Group drag mode ──
+  if (state.dragging.isGroupDrag) {
+    const deltaX = pos.x - state.dragging.startX;
+    const rail = getRailById(state.dragging.railId);
+    if (!rail) { state.dragging = null; return; }
+    rail.railOffset = Math.max(0, state.dragging.groupStartOffset + deltaX);
+    layoutRail(rail);
+    return;
+  }
+
+  // ── Individual drag mode ──
   let newX = pos.x - offsetX;
   let newY = pos.y - offsetY;
   if (!state.dragging.isPunct) {
@@ -1452,49 +1614,37 @@ function checkMagnetism(x, y, el) {
   state.dragBlocked = false;
   let bestRail = null, bestResult = null, bestScore = -Infinity;
 
+  // Only check rails that have words — empty rails snap on drop only, not during drag
   state.rails.forEach(rail => {
-    if (rail.isLocked) return;
+    if (rail.isLocked || rail.words.length === 0) return;
     const railEl = document.getElementById(`rail-${rail.id}`);
     if (!railEl) return;
     const railRect = railEl.getBoundingClientRect();
     const railMidY = railRect.top + railRect.height / 2;
-    if (Math.abs(dragCY - railMidY) > 80) return;
+    if (Math.abs(dragCY - railMidY) > 38) return;
 
-    if (rail.words.length === 0) {
-      const dist = Math.sqrt(Math.pow(dragCX - (railRect.left + railRect.width / 2), 2) + Math.pow(dragCY - railMidY, 2));
-      if (dist < FIELD_DISTANCE) {
-        const score = EMPTY_RAIL_SCORE - dist / FIELD_DISTANCE;
-        if (score > bestScore) { bestScore = score; bestRail = rail; bestResult = { type: 'empty', dist }; }
-      }
-    } else {
-      rail.words.forEach(w => {
-        const targetEl = document.getElementById(`block-${w.id}`);
-        if (!targetEl) return;
-        const tRect = targetEl.getBoundingClientRect();
-        const tCX   = tRect.left + tRect.width / 2;
-        const tCY   = tRect.top  + tRect.height / 2;
-        const dist  = Math.sqrt(Math.pow(dragCX - tCX, 2) + Math.pow(dragCY - tCY, 2));
-        const side  = dragCX < tCX ? 'right' : 'left';
-        const conn  = canConnect(wordData.subtype, w.subtype, side);
-        const effectiveField = FIELD_DISTANCE * (conn.allowed ? (FIELD_BASE + conn.strength * FIELD_STRENGTH_SCALE) : FIELD_BLOCKED);
-        if (dist < effectiveField) {
-          if (conn.allowed) {
-            const score = conn.strength - dist / effectiveField;
-            if (score > bestScore) { bestScore = score; bestRail = rail; bestResult = { type: 'word', word: w, targetEl, dist, side, conn }; }
-          } else if (dist < SNAP_DISTANCE) {
-            targetEl.classList.add('in-field-repel');
-            state.dragBlocked = true;
-          }
+    rail.words.forEach(w => {
+      const targetEl = document.getElementById(`block-${w.id}`);
+      if (!targetEl) return;
+      const tRect = targetEl.getBoundingClientRect();
+      const tCX   = tRect.left + tRect.width / 2;
+      const tCY   = tRect.top  + tRect.height / 2;
+      const dist  = Math.sqrt(Math.pow(dragCX - tCX, 2) + Math.pow(dragCY - tCY, 2));
+      const side  = dragCX < tCX ? 'right' : 'left';
+      const conn  = canConnect(wordData.subtype, w.subtype, side);
+      if (conn.allowed) {
+        if (dist < FIELD_DISTANCE) {
+          const score = conn.strength - dist / FIELD_DISTANCE;
+          if (score > bestScore) { bestScore = score; bestRail = rail; bestResult = { type: 'word', word: w, targetEl, dist, side, conn }; }
         }
-      });
-    }
+      } else {
+        // Show repel glow for feedback, but don't block the drop
+        if (dist < SNAP_DISTANCE) targetEl.classList.add('in-field-repel');
+      }
+    });
   });
 
   if (!bestRail || !bestResult) return;
-  if (bestResult.type === 'empty') {
-    if (bestResult.dist < SNAP_DISTANCE) snapToRail(bestRail, null);
-    return;
-  }
   const { targetEl, dist } = bestResult;
   if (dist < FIELD_DISTANCE) targetEl.classList.add('in-field-attract');
   if (dist < SNAP_DISTANCE)  snapToRail(bestRail, bestResult);
@@ -1535,9 +1685,26 @@ function snapToRail(rail, result) {
     if (idx !== -1) insertIndex = result.side === 'right' ? idx : idx + 1;
   }
 
+  // Check validity at insert position
+  const leftNeighbor  = insertIndex > 0 ? rail.words[insertIndex - 1] : null;
+  const rightNeighbor = insertIndex < rail.words.length ? rail.words[insertIndex] : null;
+  const leftOk  = !leftNeighbor  || getConnectionResult(leftNeighbor.subtype,  wordData.subtype).allowed;
+  const rightOk = !rightNeighbor || getConnectionResult(wordData.subtype, rightNeighbor.subtype).allowed;
+  const isValid = leftOk && rightOk;
+
   rail.words.splice(insertIndex, 0, wordData);
   updateRailAnalysis(rail);
   recalcRailScore(rail);
+
+  // If this is an empty rail, set railOffset based on drop x position
+  if (rail.words.length === 1) {
+    const railEl = document.getElementById(`rail-${rail.id}`);
+    if (railEl) {
+      const rRect = railEl.getBoundingClientRect();
+      const dropX = parseFloat(el.style.left) - rRect.left;
+      rail.railOffset = Math.max(RAIL_PADDING, dropX);
+    }
+  }
 
   const railEl = document.getElementById(`rail-${rail.id}`);
   el.style.position = 'absolute';
@@ -1551,9 +1718,20 @@ function snapToRail(rail, result) {
   el.addEventListener('touchstart', ev => { if (!rail.isLocked) startDragFromRail(ev, wordData, rail.id); }, { passive: false });
 
   layoutRailAnimated(rail);
-  setTimeout(() => {
-    if (rail.hasNoun && rail.hasVerb) { startJitter(rail.id); checkPeriodAvailability(); }
-  }, SPRING_DURATION + 50);
+
+  if (!isValid) {
+    setTimeout(() => {
+      el.classList.add('shaking');
+      setTimeout(() => {
+        el.classList.remove('shaking');
+        shakeKickFromRail(wordData, rail, insertIndex);
+      }, 400);
+    }, 80);
+  } else {
+    setTimeout(() => {
+      if (rail.hasNoun && rail.hasVerb) { startJitter(rail.id); checkPeriodAvailability(); }
+    }, SPRING_DURATION + 50);
+  }
 
   ensureEmptyRail();
   resetInactivityTimer();
@@ -1562,16 +1740,67 @@ function snapToRail(rail, result) {
 function updateRailAnalysis(rail) {
   rail.hasNoun = rail.words.some(w => isNounType(w.subtype));
   rail.hasVerb = rail.words.some(w => isVerbType(w.subtype));
-  const subjectWord  = rail.words.find(w => isNounType(w.subtype));
+  // Noun drives agreement — prefer noun over pronoun if both present
+  const nounWord    = rail.words.find(w => w.subtype === 'noun');
+  const pronounWord = rail.words.find(w => w.subtype === 'pronoun');
+  const subjectWord = nounWord || pronounWord;
   const newAgreement = subjectWord ? subjectWord.agreement : null;
-  if (newAgreement !== rail.subjectAgreement) {
-    rail.subjectAgreement = newAgreement;
-    if (newAgreement) updateVerbAgreement(rail);
-  }
+  rail.subjectAgreement = newAgreement;
+  if (newAgreement) updateVerbAgreement(rail);
 }
 
 function ensureEmptyRail() {
   if (!state.rails.some(r => r.words.length === 0 && !r.isLocked)) createRail();
+}
+
+// ═══════════════════════════════════════════════════
+//  SHAKE-KICK (invalid drop rejection)
+// ═══════════════════════════════════════════════════
+
+function shakeKickFromRail(wordData, rail, insertIndex) {
+  // Remove the word from the rail data
+  const idx = rail.words.findIndex(w => w.id === wordData.id);
+  if (idx === -1) { layoutRailAnimated(rail); ensureEmptyRail(); return; }
+  rail.words.splice(idx, 1);
+  updateRailAnalysis(rail); recalcRailScore(rail);
+
+  const el = document.getElementById(`block-${wordData.id}`);
+  if (!el) { layoutRailAnimated(rail); ensureEmptyRail(); return; }
+
+  // Determine kick direction: away from the bad neighbor
+  // After removal, original left neighbor is at insertIndex-1, right at insertIndex
+  const leftNeighbor  = (insertIndex - 1 >= 0) ? rail.words[insertIndex - 1] : null;
+  const rightNeighbor = (insertIndex   < rail.words.length) ? rail.words[insertIndex] : null;
+  const leftBad  = leftNeighbor  && !getConnectionResult(leftNeighbor.subtype, wordData.subtype).allowed;
+  const rightBad = rightNeighbor && !getConnectionResult(wordData.subtype, rightNeighbor.subtype).allowed;
+
+  // Kick away from bad side; if both bad or ambiguous, kick right
+  let kickDir = 1;
+  if (rightBad && !leftBad) kickDir = -1;
+
+  const KICK_PX = 90;
+
+  // Lift block to fixed coords so it can animate freely
+  const rect = el.getBoundingClientRect();
+  el.style.position = 'fixed';
+  el.style.left = `${rect.left}px`;
+  el.style.top  = `${rect.top}px`;
+  el.style.zIndex = '500';
+  document.body.appendChild(el);
+
+  // Re-layout the rail without this word
+  layoutRailAnimated(rail);
+
+  // Animate the kick outward then fade
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      el.style.transition = `left 0.32s var(--spring), opacity 0.28s ease 0.08s, transform 0.32s ease`;
+      el.style.left    = `${rect.left + kickDir * KICK_PX}px`;
+      el.style.opacity = '0';
+      el.style.transform = 'scale(0.82)';
+      setTimeout(() => { el.remove(); ensureEmptyRail(); checkPeriodAvailability(); }, 420);
+    });
+  });
 }
 
 // ═══════════════════════════════════════════════════
@@ -1586,7 +1815,9 @@ function lockSentence(rail, punct) {
   document.querySelectorAll('.in-field-attract,.in-field-repel').forEach(b => b.classList.remove('in-field-attract','in-field-repel'));
   stopJitter(rail.id);
   rail.isLocked = true;
-  const sentenceText = rail.words.map(w => w.displayText || w.text).join(' ') + punct;
+  const rawWords = rail.words.map(w => w.displayText || w.text);
+  if (rawWords.length > 0) rawWords[0] = rawWords[0].charAt(0).toUpperCase() + rawWords[0].slice(1);
+  const sentenceText = rawWords.join(' ') + punct;
   const railEl = document.getElementById(`rail-${rail.id}`);
   rail.words.forEach(w => {
     const el = document.getElementById(`block-${w.id}`);
@@ -1620,6 +1851,18 @@ function onDragEnd(e) {
   document.querySelectorAll('.in-field-attract,.in-field-repel').forEach(b => b.classList.remove('in-field-attract','in-field-repel'));
   if (!state.dragging) return;
 
+  // ── Pending direction: released before committing — treat as tap/no-op ──
+  if (state.dragging.pendingDirection) {
+    state.dragging = null; state.dragBlocked = false;
+    resetInactivityTimer(); return;
+  }
+
+  // ── Group drag released ──
+  if (state.dragging.isGroupDrag) {
+    state.dragging = null; state.dragBlocked = false;
+    resetInactivityTimer(); return;
+  }
+
   const { el, fromBank, sourceRailId, sourceIndex, wordData, isPunct } = state.dragging;
   const pos   = getEventPos(e);
   const dRect = dz.getBoundingClientRect();
@@ -1641,39 +1884,83 @@ function onDragEnd(e) {
     checkPeriodAvailability(); return;
   }
 
-  // Fallback: try to place on nearest rail by Y
+  // Fallback: find what rail the word was dropped on by checking actual Y overlap
   const elTop = parseFloat(el.style.top);
   const blockH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--block-h')) || 48;
   const elCY   = elTop + blockH / 2;
-  let nearestRail = null, nearestDist = Infinity, nearestRailEl = null;
+  const elCX   = parseFloat(el.style.left) + (el.offsetWidth / 2);
+  let targetRail = null, targetRailEl = null;
+
+  // First pass: look for a rail the word is actually overlapping (tight Y match)
   state.rails.forEach(r => {
     if (r.isLocked) return;
-    const rEl   = document.getElementById(`rail-${r.id}`);
+    const rEl = document.getElementById(`rail-${r.id}`);
     if (!rEl) return;
     const rRect = rEl.getBoundingClientRect();
-    const rCY   = rRect.top + rRect.height / 2;
-    const dist  = Math.abs(elCY - rCY);
-    if (dist < nearestDist) { nearestDist = dist; nearestRail = r; nearestRailEl = rEl; }
+    const rCY = rRect.top + rRect.height / 2;
+    // Must be within the rail's actual vertical band
+    if (Math.abs(elCY - rCY) < 38) {
+      targetRail = r; targetRailEl = rEl;
+    }
   });
 
-  const wasBlocked = state.dragBlocked;
   state.dragging = null; state.dragBlocked = false;
 
-  if (nearestRail && nearestDist < 100) {
-    const lastWord  = nearestRail.words.length > 0 ? nearestRail.words[nearestRail.words.length - 1] : null;
-    const canAppend = !lastWord || getConnectionResult(lastWord.subtype, wordData.subtype).allowed;
-    if (canAppend) {
-      nearestRail.words.push(wordData);
-      updateRailAnalysis(nearestRail); recalcRailScore(nearestRail);
-      el.style.position = 'absolute'; el.style.zIndex = '10';
-      el.classList.remove('dragging'); el.classList.add('snapped');
-      nearestRailEl.appendChild(el);
-      el.addEventListener('mousedown', ev => { if (!nearestRail.isLocked) startDragFromRail(ev, wordData, nearestRail.id); });
-      el.addEventListener('touchstart', ev => { if (!nearestRail.isLocked) startDragFromRail(ev, wordData, nearestRail.id); }, { passive: false });
-      layoutRailAnimated(nearestRail);
-      if (nearestRail.hasNoun && nearestRail.hasVerb) { setTimeout(() => startJitter(nearestRail.id), SPRING_DURATION + 50); checkPeriodAvailability(); }
-      ensureEmptyRail(); resetInactivityTimer(); return;
+  if (targetRail) {
+    // Always allow dropping onto a rail — check validity after placement
+    const dropX = parseFloat(el.style.left);
+    const elW = el.offsetWidth || estimateBlockWidth(wordData.displayText || wordData.text);
+    const dropXCenter = dropX + elW / 2;
+
+    // Find best insert position by x proximity
+    let insertIndex = targetRail.words.length;
+    let bestDist = Infinity;
+    targetRail.words.forEach((w, i) => {
+      const wEl = document.getElementById(`block-${w.id}`);
+      if (!wEl) return;
+      const wRect = wEl.getBoundingClientRect();
+      const wCX = wRect.left + wRect.width / 2;
+      const dist = Math.abs(dropXCenter - wCX);
+      if (dist < bestDist) { bestDist = dist; insertIndex = dropXCenter < wCX ? i : i + 1; }
+    });
+
+    // Check validity at chosen position
+    const leftNeighbor  = insertIndex > 0 ? targetRail.words[insertIndex - 1] : null;
+    const rightNeighbor = insertIndex < targetRail.words.length ? targetRail.words[insertIndex] : null;
+    const leftOk  = !leftNeighbor  || getConnectionResult(leftNeighbor.subtype,  wordData.subtype).allowed;
+    const rightOk = !rightNeighbor || getConnectionResult(wordData.subtype, rightNeighbor.subtype).allowed;
+    const isValid = leftOk && rightOk;
+
+    // Set railOffset from drop X if rail is empty
+    if (targetRail.words.length === 0 && targetRailEl) {
+      const rRect = targetRailEl.getBoundingClientRect();
+      const dx = dropX - rRect.left;
+      targetRail.railOffset = Math.max(RAIL_PADDING, isNaN(dx) ? RAIL_PADDING : dx);
     }
+
+    targetRail.words.splice(insertIndex, 0, wordData);
+    updateRailAnalysis(targetRail); recalcRailScore(targetRail);
+    el.style.position = 'absolute'; el.style.zIndex = '10';
+    el.classList.remove('dragging'); el.classList.add('snapped');
+    el.dataset.railId = targetRail.id;
+    targetRailEl.appendChild(el);
+    el.addEventListener('mousedown', ev => { if (!targetRail.isLocked) startDragFromRail(ev, wordData, targetRail.id); });
+    el.addEventListener('touchstart', ev => { if (!targetRail.isLocked) startDragFromRail(ev, wordData, targetRail.id); }, { passive: false });
+    layoutRailAnimated(targetRail);
+
+    if (!isValid) {
+      // Shake then magnetically kick sideways ~1 card-width from the bad neighbor
+      setTimeout(() => {
+        el.classList.add('shaking');
+        setTimeout(() => {
+          el.classList.remove('shaking');
+          shakeKickFromRail(wordData, targetRail, insertIndex);
+        }, 400);
+      }, 80);
+    } else {
+      if (targetRail.hasNoun && targetRail.hasVerb) { setTimeout(() => startJitter(targetRail.id), SPRING_DURATION + 50); checkPeriodAvailability(); }
+    }
+    ensureEmptyRail(); resetInactivityTimer(); return;
   }
 
   // Return to source rail or fade out
@@ -1695,17 +1982,9 @@ function onDragEnd(e) {
     }
   }
 
-  // Fade/shake and discard
-  if (wasBlocked) {
-    el.classList.add('shaking');
-    setTimeout(() => {
-      el.style.transition = 'all 0.35s ease'; el.style.opacity = '0'; el.style.transform = 'scale(0.8)';
-      setTimeout(() => el.remove(), 350);
-    }, 380);
-  } else {
-    el.style.transition = 'all 0.35s ease'; el.style.opacity = '0'; el.style.transform = 'scale(0.8)';
-    setTimeout(() => el.remove(), 350);
-  }
+  // Fade out — word missed all rails
+  el.style.transition = 'all 0.35s ease'; el.style.opacity = '0'; el.style.transform = 'scale(0.8)';
+  setTimeout(() => el.remove(), 350);
   ensureEmptyRail(); resetInactivityTimer();
 }
 
