@@ -898,7 +898,7 @@ const WORD_BANK = {
 };
 
 const LEVELS = [
-  { level: 1, xpRequired: 0,   unlocks: ["nouns","pronouns","verbs"],  unlockLabel: "Nouns & Verbs",         punctUnlocks: ["."] },
+  { level: 1, xpRequired: 0,   unlocks: ["nouns","verbs"],             unlockLabel: "Nouns & Verbs",         punctUnlocks: ["."] },
   { level: 2, xpRequired: 5,   unlocks: ["articles"],                  unlockLabel: "Articles unlocked",      punctUnlocks: [] },
   { level: 3, xpRequired: 20,  unlocks: ["adjectives"],                unlockLabel: "Adjectives unlocked",    punctUnlocks: [] },
   { level: 4, xpRequired: 45,  unlocks: ["determiners"],               unlockLabel: "Determiners unlocked",   punctUnlocks: [] },
@@ -991,7 +991,7 @@ let state = {
   dragBlocked: false,
   physicsLoops: {},
   activeTab: 'nouns',
-  starterMode: false,
+  tutorialPhase: null, // null | 'noun' | 'verb'
   idCounter: 0,
   inactivityTimer: null,
 };
@@ -1004,6 +1004,7 @@ function saveState() {
       unlockedTypes: [...state.unlockedTypes],
       unlockedPunct: [...state.unlockedPunct],
       vaultSentences: state.vaultSentences,
+      tutorialPhase: state.tutorialPhase,
     }));
   } catch(e) {}
 }
@@ -1013,7 +1014,7 @@ function loadState() {
     state.level = LEVELS.length; state.xp = 9999;
     Object.keys(WORD_BANK).forEach(k => state.unlockedTypes.add(k));
     ALL_PUNCT.forEach(p => state.unlockedPunct.add(p));
-    state.starterMode = false;
+    state.tutorialPhase = null;
     return;
   }
   try {
@@ -1025,13 +1026,20 @@ function loadState() {
       state.unlockedTypes = new Set(save.unlockedTypes || []);
       state.unlockedPunct = new Set(save.unlockedPunct || ["."]);
       state.vaultSentences = save.vaultSentences || [];
-      state.starterMode = false;
+      state.tutorialPhase = save.tutorialPhase ?? null;
+
+      const shouldRunTutorial = state.level === 1 && state.xp === 0 && state.vaultSentences.length === 0;
+      if (shouldRunTutorial) {
+        state.tutorialPhase = state.tutorialPhase || 'noun';
+        state.unlockedTypes = new Set(["nouns", "verbs"]);
+        state.unlockedPunct = new Set(["."]);
+      }
     } else {
       applyLevelUnlocks(1);
-      state.starterMode = true;
+      state.tutorialPhase = 'noun';
       state.activeTab = 'nouns';
     }
-  } catch(e) { applyLevelUnlocks(1); }
+  } catch(e) { applyLevelUnlocks(1); state.tutorialPhase = 'noun'; }
 }
 
 function applyLevelUnlocks(level) {
@@ -1365,9 +1373,16 @@ function buildBankTabs() {
 function buildBankWords() {
   const wordsEl = document.getElementById('bankWords');
   wordsEl.innerHTML = '';
-  const wordsToRender = state.starterMode
-    ? [{ text: "I", subtype: "pronoun", agreement: "1st-singular" }]
-    : (WORD_BANK[state.activeTab] || []);
+  let wordsToRender = WORD_BANK[state.activeTab] || [];
+  if (state.tutorialPhase) {
+    if (state.activeTab === 'nouns') {
+      wordsToRender = [{ text: "I", subtype: "pronoun", agreement: "1st-singular" }];
+    } else if (state.activeTab === 'verbs') {
+      wordsToRender = WORD_BANK.verbs.filter(v => v.text === 'play');
+    } else {
+      wordsToRender = [];
+    }
+  }
 
   wordsToRender.forEach(wordData => {
     const el = document.createElement('div');
@@ -1417,12 +1432,6 @@ function getPunctName(p) {
 function startDragFromBank(e, wordData, sourceEl) {
   e.preventDefault();
   clearInactivityTimer();
-
-  if (state.starterMode) {
-    state.starterMode = false;
-    buildBankTabs();
-    buildBankWords();
-  }
 
   const pos  = getEventPos(e);
   const rect = sourceEl.getBoundingClientRect();
@@ -1711,6 +1720,20 @@ function snapToRail(rail, result) {
   rail.words.splice(insertIndex, 0, wordData);
   updateRailAnalysis(rail);
   recalcRailScore(rail);
+
+  if (state.tutorialPhase === 'noun' && isNounType(wordData.subtype)) {
+    state.tutorialPhase = 'verb';
+    state.activeTab = 'verbs';
+    buildBankTabs();
+    buildBankWords();
+    setTimeout(wiggleVerbBank, 200);
+    saveState();
+  } else if (state.tutorialPhase === 'verb' && isVerbType(wordData.subtype)) {
+    state.tutorialPhase = null;
+    buildBankTabs();
+    buildBankWords();
+    saveState();
+  }
 
   // If this is an empty rail, set railOffset based on drop x position
   if (rail.words.length === 1) {
@@ -2116,7 +2139,8 @@ function toggleDevMode() {
 
 function resetInactivityTimer() {
   clearInactivityTimer();
-  state.inactivityTimer = setTimeout(wiggleNounBank, 3000);
+  const wiggleFn = state.tutorialPhase === 'verb' ? wiggleVerbBank : wiggleNounBank;
+  state.inactivityTimer = setTimeout(wiggleFn, 3000);
 }
 function clearInactivityTimer() {
   if (state.inactivityTimer) { clearTimeout(state.inactivityTimer); state.inactivityTimer = null; }
@@ -2124,6 +2148,13 @@ function clearInactivityTimer() {
 function wiggleNounBank() {
   const nounTab = document.querySelector('.bank-tab[data-type="nouns"]');
   if (nounTab) { nounTab.classList.add('wiggling'); setTimeout(() => nounTab.classList.remove('wiggling'), 700); }
+  const firstWord = document.querySelector('.bank-word');
+  if (firstWord) { firstWord.classList.add('wiggling'); setTimeout(() => firstWord.classList.remove('wiggling'), 700); }
+}
+
+function wiggleVerbBank() {
+  const verbTab = document.querySelector('.bank-tab[data-type="verbs"]');
+  if (verbTab) { verbTab.classList.add('wiggling'); setTimeout(() => verbTab.classList.remove('wiggling'), 700); }
   const firstWord = document.querySelector('.bank-word');
   if (firstWord) { firstWord.classList.add('wiggling'); setTimeout(() => firstWord.classList.remove('wiggling'), 700); }
 }
