@@ -1920,14 +1920,13 @@ function checkMagnetism(x, y, el) {
   state.rails.forEach(rail => {
     if (rail.isLocked || rail.words.length === 0) return;
 
-    // Punctuation blocks skip normal word magnetism; they only trigger lockSentence
+    // Punctuation blocks skip normal word magnetism; only show attract glow during drag
     if (wordData.subtype === 'punctuation') {
-      if (!state.dragging) return; // lockSentence already called for a prior rail
       if (isRailComplete(rail)) {
         const lastWord = rail.words[rail.words.length - 1];
         const lastEl = document.getElementById(`block-${lastWord.id}`);
-        if (lastEl && Math.abs(dragCX - lastEl.getBoundingClientRect().right) < SNAP_DISTANCE) {
-          lockSentence(rail, wordData);
+        if (lastEl && Math.abs(dragCX - lastEl.getBoundingClientRect().right) < FIELD_DISTANCE) {
+          lastEl.classList.add('in-field-attract');
         }
       }
       return; // Skip normal word magnetism for punctuation
