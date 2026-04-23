@@ -1370,6 +1370,8 @@ function getBlockText(el) { return el.querySelector('.block-text'); }
 
 const BLOCK_GAP   = 8;
 const RAIL_PADDING = 14;
+// block top ≈ 12px, block height ≈ 48px → baseline = 60px; period height = 32px → 60 - 32 = 28px
+const PERIOD_BASELINE_OFFSET = 28;
 
 function layoutRail(rail) {
   const railEl = document.getElementById(`rail-${rail.id}`);
@@ -1725,6 +1727,8 @@ function startDragPunct(e, punct, sourceEl) {
   const el = document.createElement('div');
   el.className = 'word-block type-punctuation dragging';
   el.id = `block-${newWordData.id}`;
+  el.setAttribute('role', 'button');
+  el.setAttribute('aria-label', `Punctuation: ${punct}`);
   el.style.left = `${rect.left}px`;
   el.style.top  = `${rect.top}px`;
   el.style.position = 'fixed';
@@ -2178,6 +2182,7 @@ function lockSentence(rail, punctData) {
   rail.isLocked = true;
   const rawWords = rail.words.map(w => w.displayText || w.text);
   if (rawWords.length > 0) rawWords[0] = rawWords[0].charAt(0).toUpperCase() + rawWords[0].slice(1);
+  // punctData may be a wordData object (new physical-block path) or a bare string (legacy checkPunctMagnetism path)
   const punctChar = typeof punctData === 'string' ? punctData : punctData.displayText;
   const sentenceText = rawWords.join(' ') + punctChar;
   const railEl = document.getElementById(`rail-${rail.id}`);
@@ -2190,7 +2195,7 @@ function lockSentence(rail, punctData) {
     punctEl.classList.remove('dragging', 'dancing');
     punctEl.style.position = 'absolute';
     // block top ≈ 12px, block height ≈ 48px → baseline at 60px; period height = 32px → top = 28px
-    punctEl.style.top = '28px';
+    punctEl.style.top = `${PERIOD_BASELINE_OFFSET}px`;
     punctEl.style.left = `${lastX + (lastEl ? lastEl.offsetWidth : 0) + 2}px`;
     punctEl.style.zIndex = '';
     punctEl.style.cursor = 'default';
