@@ -889,6 +889,9 @@ const WORD_BANK = {
     { text: "water", subtype: "noun", agreement: "3rd-singular", singular: "water", plural: "waters", uncountable: true },
     { text: "tree",  subtype: "noun", agreement: "3rd-singular", singular: "tree",  plural: "trees"  },
     { text: "kids",  subtype: "noun", agreement: "3rd-plural",   singular: "kid",   plural: "kids"   },
+    { text: "ball",  subtype: "noun", agreement: "3rd-singular", singular: "ball",  plural: "balls"  },
+    { text: "fish",  subtype: "noun", agreement: "3rd-singular", singular: "fish",  plural: "fish", uncountable: true },
+    { text: "sun",   subtype: "noun", agreement: "3rd-singular", singular: "sun",   plural: "suns"   },
   ],
   pronouns: [
     { text: "I",    subtype: "pronoun", agreement: "1st-singular" },
@@ -937,21 +940,21 @@ const WORD_BANK = {
 };
 
 const LEVELS = [
-  { level: 1, xpRequired: 0,   unlocks: ["nouns","verbs"],             unlockLabel: "Nouns & Verbs",         punctUnlocks: ["."] },
-  { level: 2, xpRequired: 5,   unlocks: ["articles"],                  unlockLabel: "Articles unlocked",      punctUnlocks: [] },
-  { level: 3, xpRequired: 20,  unlocks: ["adjectives"],                unlockLabel: "Adjectives unlocked",    punctUnlocks: [] },
-  { level: 4, xpRequired: 45,  unlocks: ["determiners"],               unlockLabel: "Determiners unlocked",   punctUnlocks: [] },
-  { level: 5, xpRequired: 80,  unlocks: [],                            unlockLabel: "! and ? unlocked",       punctUnlocks: ["!","?"] },
-  { level: 6, xpRequired: 130, unlocks: ["adverbs"],                   unlockLabel: "Adverbs unlocked",       punctUnlocks: [] },
-  { level: 7, xpRequired: 200, unlocks: ["prepositions"],              unlockLabel: "Prepositions unlocked",  punctUnlocks: [] },
-  { level: 8, xpRequired: 300, unlocks: ["conjunctions"],              unlockLabel: "Conjunctions unlocked",  punctUnlocks: [","] },
+  { level: 1, xpRequired: 0,   unlocks: ["nouns","verbs"],                  unlockLabel: "Nouns & Verbs",                     punctUnlocks: ["."] },
+  { level: 2, xpRequired: 5,   unlocks: [],                                  unlockLabel: "10 basic nouns & verbs unlocked",    punctUnlocks: [] },
+  { level: 3, xpRequired: 20,  unlocks: ["articles"],                        unlockLabel: "Articles unlocked",                  punctUnlocks: [] },
+  { level: 4, xpRequired: 45,  unlocks: ["adjectives","determiners"],        unlockLabel: "Adjectives & Determiners unlocked",  punctUnlocks: [] },
+  { level: 5, xpRequired: 80,  unlocks: [],                                  unlockLabel: "! and ? unlocked",                   punctUnlocks: ["!","?"] },
+  { level: 6, xpRequired: 130, unlocks: ["adverbs"],                         unlockLabel: "Adverbs unlocked",                   punctUnlocks: [] },
+  { level: 7, xpRequired: 200, unlocks: ["prepositions"],                    unlockLabel: "Prepositions unlocked",              punctUnlocks: [] },
+  { level: 8, xpRequired: 300, unlocks: ["conjunctions"],                    unlockLabel: "Conjunctions unlocked",              punctUnlocks: [","] },
 ];
 
 const ALL_PUNCT = [".", "!", "?", ",", ";", ":", '"', "'", "(", ")", "—", "–", "…"];
 
 const SCORE_VALUES = {
-  "pronoun": 3, "noun": 4,
-  "verb-intransitive": 4, "verb-transitive": 5, "verb-linking": 3,
+  "pronoun": 1, "noun": 4,
+  "verb-intransitive": 1, "verb-transitive": 5, "verb-linking": 3,
   "article": 2, "determiner": 4,
   "adjective": 3, "adverb": 3,
   "preposition": 3, "conjunction": 5,
@@ -1214,17 +1217,24 @@ const RAIL_PADDING = 14;
 function layoutRail(rail) {
   const railEl = document.getElementById(`rail-${rail.id}`);
   if (!railEl) return;
-  let x = rail.railOffset !== undefined ? rail.railOffset : RAIL_PADDING;
   const railH = 72;
   const blockH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--block-h')) || 48;
   const topOffset = (railH - blockH) / 2;
+  // If any word lacks a stored x position, run the pack algorithm to assign them
+  if (rail.words.some(w => w.x === undefined)) {
+    let x = RAIL_PADDING;
+    rail.words.forEach(wordData => {
+      wordData.x = x;
+      const el = document.getElementById(`block-${wordData.id}`);
+      const w = el ? (el.offsetWidth || estimateBlockWidth(wordData.displayText || wordData.text)) : estimateBlockWidth(wordData.displayText || wordData.text);
+      x += w + BLOCK_GAP;
+    });
+  }
   rail.words.forEach((wordData, idx) => {
     const el = document.getElementById(`block-${wordData.id}`);
     if (!el) return;
-    const w = el.offsetWidth || estimateBlockWidth(wordData.displayText || wordData.text);
-    el.style.left = `${x}px`;
+    el.style.left = `${wordData.x}px`;
     el.style.top  = `${topOffset}px`;
-    x += w + BLOCK_GAP;
     applyAutoCapitalize(rail, wordData, idx);
   });
 }
@@ -1249,16 +1259,23 @@ function layoutRailAnimated(rail) {
   const blockH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--block-h')) || 48;
   const railH = 72;
   const topOffset = (railH - blockH) / 2;
-  let x = rail.railOffset !== undefined ? rail.railOffset : RAIL_PADDING;
+  // If any word lacks a stored x position, run the pack algorithm to assign them
+  if (rail.words.some(w => w.x === undefined)) {
+    let x = RAIL_PADDING;
+    rail.words.forEach(wordData => {
+      wordData.x = x;
+      const el = document.getElementById(`block-${wordData.id}`);
+      const w = el ? (el.offsetWidth || estimateBlockWidth(wordData.displayText || wordData.text)) : estimateBlockWidth(wordData.displayText || wordData.text);
+      x += w + BLOCK_GAP;
+    });
+  }
   rail.words.forEach((wordData, idx) => {
     const el = document.getElementById(`block-${wordData.id}`);
     if (!el) return;
-    const w = el.offsetWidth || estimateBlockWidth(wordData.displayText || wordData.text);
     el.style.transition = `left ${SPRING_DURATION}ms var(--spring), top ${SPRING_DURATION}ms var(--spring)`;
-    el.style.left = `${x}px`;
+    el.style.left = `${wordData.x}px`;
     el.style.top  = `${topOffset}px`;
     setTimeout(() => { el.style.transition = ''; }, SPRING_DURATION + 50);
-    x += w + BLOCK_GAP;
     applyAutoCapitalize(rail, wordData, idx);
   });
 }
@@ -1392,8 +1409,9 @@ function updateVerbAgreement(rail) {
 function checkPeriodAvailability() {
   const anyComplete = state.rails.some(r => !r.isLocked && r.hasNoun && r.hasVerb);
   document.querySelectorAll('.punct-mark[data-punct="."]').forEach(el => {
-    if (anyComplete) { el.classList.remove('locked-mark'); el.classList.add('dancing'); }
-    else             { el.classList.add('locked-mark');    el.classList.remove('dancing'); }
+    el.classList.remove('locked-mark');
+    if (anyComplete) el.classList.add('dancing');
+    else             el.classList.remove('dancing');
   });
 }
 
@@ -1426,7 +1444,7 @@ function buildBankWords() {
   const wordsEl = document.getElementById('bankWords');
   wordsEl.innerHTML = '';
   let wordsToRender = WORD_BANK[state.activeTab] || [];
-  if (state.tutorialPhase) {
+  if (state.level === 1) {
     if (state.activeTab === 'nouns') {
       wordsToRender = [{ text: "I", subtype: "pronoun", agreement: "1st-singular" }];
     } else if (state.activeTab === 'verbs') {
@@ -1577,12 +1595,14 @@ function commitIndividualDrag(dragState) {
 }
 
 function commitGroupDrag(dragState) {
-  // Group drag: move the rail's railOffset, keeping all words together
+  // Group drag: move all words on the rail together, keeping relative positions
   const rail = getRailById(dragState.railId);
   if (!rail || rail.isLocked) return false;
   dragState.pendingDirection = false;
   dragState.isGroupDrag = true;
-  dragState.groupStartOffset = rail.railOffset !== undefined ? rail.railOffset : RAIL_PADDING;
+  // Store initial x of each word for delta computation
+  dragState.groupStartXMap = {};
+  rail.words.forEach(w => { dragState.groupStartXMap[w.id] = w.x !== undefined ? w.x : RAIL_PADDING; });
   return true;
 }
 
@@ -1655,7 +1675,9 @@ function onDragMove(e) {
     const deltaX = pos.x - state.dragging.startX;
     const rail = getRailById(state.dragging.railId);
     if (!rail) { state.dragging = null; return; }
-    rail.railOffset = Math.max(0, state.dragging.groupStartOffset + deltaX);
+    rail.words.forEach(w => {
+      w.x = Math.max(0, (state.dragging.groupStartXMap[w.id] !== undefined ? state.dragging.groupStartXMap[w.id] : RAIL_PADDING) + deltaX);
+    });
     layoutRail(rail);
     return;
   }
@@ -1790,14 +1812,29 @@ function snapToRail(rail, result) {
     saveState();
   }
 
-  // If this is an empty rail, set railOffset based on drop x position
-  if (rail.words.length === 1) {
-    const railEl = document.getElementById(`rail-${rail.id}`);
-    if (railEl) {
-      const rRect = railEl.getBoundingClientRect();
-      const dropX = parseFloat(el.style.left) - rRect.left;
-      rail.railOffset = Math.max(RAIL_PADDING, dropX);
+  // Compute the dropped word's x position on the rail
+  const railElForPos = document.getElementById(`rail-${rail.id}`);
+  if (railElForPos) {
+    if (result && result.type === 'word') {
+      // Place adjacent to the target word
+      const targetWordData = result.word;
+      const targetX = targetWordData.x !== undefined ? targetWordData.x : RAIL_PADDING;
+      const insertedW = el.offsetWidth || estimateBlockWidth(wordData.displayText || wordData.text);
+      const targetW = result.targetEl.offsetWidth || estimateBlockWidth(targetWordData.displayText || targetWordData.text);
+      if (result.side === 'right') {
+        // Inserted to the LEFT of target
+        wordData.x = Math.max(RAIL_PADDING, targetX - insertedW - BLOCK_GAP);
+      } else {
+        // Inserted to the RIGHT of target
+        wordData.x = targetX + targetW + BLOCK_GAP;
+      }
+    } else {
+      // No specific target (first word on empty rail) — use drop position
+      const rRect = railElForPos.getBoundingClientRect();
+      wordData.x = Math.max(RAIL_PADDING, parseFloat(el.style.left) - rRect.left);
     }
+  } else {
+    wordData.x = RAIL_PADDING;
   }
 
   const railEl = document.getElementById(`rail-${rail.id}`);
@@ -2006,18 +2043,51 @@ function onDragEnd(e) {
     const dropX = parseFloat(el.style.left);
     const elW = el.offsetWidth || estimateBlockWidth(wordData.displayText || wordData.text);
     const dropXCenter = dropX + elW / 2;
+    const rRect = targetRailEl.getBoundingClientRect();
+    const dropRelX = Math.max(RAIL_PADDING, isNaN(dropX) ? RAIL_PADDING : dropX - rRect.left);
+    const blockH2 = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--block-h')) || 48;
+    const topOffset = (72 - blockH2) / 2;
 
     // Find best insert position by x proximity
     let insertIndex = targetRail.words.length;
     let bestDist = Infinity;
+    let nearestWordIdx = -1;
     targetRail.words.forEach((w, i) => {
       const wEl = document.getElementById(`block-${w.id}`);
       if (!wEl) return;
       const wRect = wEl.getBoundingClientRect();
       const wCX = wRect.left + wRect.width / 2;
       const dist = Math.abs(dropXCenter - wCX);
-      if (dist < bestDist) { bestDist = dist; insertIndex = dropXCenter < wCX ? i : i + 1; }
+      if (dist < bestDist) { bestDist = dist; nearestWordIdx = i; insertIndex = dropXCenter < wCX ? i : i + 1; }
     });
+
+    // Compute wordData.x: snap to neighbor if within SNAP_DISTANCE, otherwise free drop
+    if (targetRail.words.length === 0) {
+      // Empty rail — place at drop position
+      wordData.x = dropRelX;
+    } else if (bestDist < SNAP_DISTANCE && nearestWordIdx !== -1) {
+      // Close enough to snap — place immediately adjacent to nearest word
+      const nearWord = targetRail.words[nearestWordIdx];
+      const nearEl = document.getElementById(`block-${nearWord.id}`);
+      const nearX = nearWord.x !== undefined ? nearWord.x : RAIL_PADDING;
+      const nearW = nearEl ? (nearEl.offsetWidth || estimateBlockWidth(nearWord.displayText || nearWord.text)) : estimateBlockWidth(nearWord.displayText || nearWord.text);
+      if (dropXCenter < (nearX + nearW / 2)) {
+        // Insert before nearWord
+        wordData.x = Math.max(RAIL_PADDING, nearX - elW - BLOCK_GAP);
+        insertIndex = nearestWordIdx;
+      } else {
+        // Insert after nearWord
+        wordData.x = nearX + nearW + BLOCK_GAP;
+        insertIndex = nearestWordIdx + 1;
+      }
+    } else {
+      // Free drop — sit at dropped position; compute order by x
+      wordData.x = dropRelX;
+      insertIndex = targetRail.words.length;
+      targetRail.words.forEach((w, i) => {
+        if (wordData.x > (w.x !== undefined ? w.x : RAIL_PADDING)) insertIndex = i + 1;
+      });
+    }
 
     // Check validity at chosen position
     const leftNeighbor  = insertIndex > 0 ? targetRail.words[insertIndex - 1] : null;
@@ -2026,22 +2096,18 @@ function onDragEnd(e) {
     const rightOk = !rightNeighbor || getConnectionResult(wordData.subtype, rightNeighbor.subtype).allowed;
     const isValid = leftOk && rightOk;
 
-    // Set railOffset from drop X if rail is empty
-    if (targetRail.words.length === 0 && targetRailEl) {
-      const rRect = targetRailEl.getBoundingClientRect();
-      const dx = dropX - rRect.left;
-      targetRail.railOffset = Math.max(RAIL_PADDING, isNaN(dx) ? RAIL_PADDING : dx);
-    }
-
     targetRail.words.splice(insertIndex, 0, wordData);
     updateRailAnalysis(targetRail); recalcRailScore(targetRail);
     el.style.position = 'absolute'; el.style.zIndex = '10';
+    el.style.left = `${wordData.x}px`;
+    el.style.top  = `${topOffset}px`;
     el.classList.remove('dragging'); el.classList.add('snapped');
     el.dataset.railId = targetRail.id;
     targetRailEl.appendChild(el);
     el.addEventListener('mousedown', ev => { if (!targetRail.isLocked) startDragFromRail(ev, wordData, targetRail.id); });
     el.addEventListener('touchstart', ev => { if (!targetRail.isLocked) startDragFromRail(ev, wordData, targetRail.id); }, { passive: false });
-    layoutRailAnimated(targetRail);
+    // Update capitalization for all words now that order may have changed
+    targetRail.words.forEach((w, idx) => applyAutoCapitalize(targetRail, w, idx));
 
     if (!isValid) {
       // Shake then magnetically kick sideways ~1 card-width from the bad neighbor
@@ -2207,10 +2273,10 @@ function hardReset() {
 function resetInactivityTimer() {
   clearInactivityTimer();
   const wiggleFn = state.tutorialPhase === 'verb' ? wiggleVerbBank : wiggleNounBank;
-  state.inactivityTimer = setTimeout(wiggleFn, 3000);
+  state.inactivityTimer = setInterval(wiggleFn, 3000);
 }
 function clearInactivityTimer() {
-  if (state.inactivityTimer) { clearTimeout(state.inactivityTimer); state.inactivityTimer = null; }
+  if (state.inactivityTimer) { clearInterval(state.inactivityTimer); state.inactivityTimer = null; }
 }
 function wiggleNounBank() {
   const nounTab = document.querySelector('.bank-tab[data-type="nouns"]');
