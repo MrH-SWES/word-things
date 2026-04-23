@@ -461,24 +461,24 @@
     }
 
     .punct-mark {
-      width: 32px; height: 32px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 900;
-      font-size: 1rem;
-      color: var(--text-main);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-family: 'Lexend', sans-serif; font-weight: 900; font-size: 2.2rem;
+      background: linear-gradient(135deg, #efefef 0%, #a8a8a8 40%, #808080 60%, #e0e0e0 100%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent; color: transparent;
+      filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
+      cursor: grab; transition: opacity 0.3s ease, transform 0.2s var(--spring);
+      line-height: 1; padding: 0 4px;
+    }
+
+    .punct-mark[data-punct="."] {
+      width: 16px; height: 16px; padding: 0; border-radius: 50%; margin: 0 8px;
+      -webkit-background-clip: border-box; background-clip: border-box;
       background:
-        radial-gradient(circle at 33% 28%, rgba(255,255,255,0.7) 0%, transparent 65%),
+        radial-gradient(circle at 33% 28%, rgba(255,255,255,0.8) 0%, transparent 65%),
         linear-gradient(135deg, #efefef 0%, #d0d0d0 25%, #a8a8a8 50%, #c0c0c0 75%, #e0e0e0 100%);
-      box-shadow:
-        inset 1px 1px 3px rgba(255,255,255,0.8),
-        inset -1px -1px 2px rgba(0,0,0,0.12),
-        0 2px 6px rgba(0,0,0,0.15);
-      cursor: grab;
-      transition: opacity 0.3s ease, transform 0.2s var(--spring);
-      font-family: 'Lexend', sans-serif;
+      box-shadow: inset 1px 1px 2px rgba(255,255,255,0.8), inset -1px -1px 2px rgba(0,0,0,0.2), 0 2px 4px rgba(0,0,0,0.25);
+      filter: none; color: transparent;
     }
 
     .punct-mark.locked-mark {
@@ -1087,12 +1087,22 @@ const XP_BAR_TRANSITION_MS = 600; // must match .xp-bar-fill transition duration
 function isNounType(t) { return t === 'noun' || t === 'pronoun'; }
 function isVerbType(t) { return t === 'verb-intransitive' || t === 'verb-transitive' || t === 'verb-linking'; }
 
-// Pure adjacency: is [leftType → rightType] valid?
-function getConnectionResult(leftType, rightType) {
+// Pure adjacency: is [leftWord → rightWord] valid?
+function getConnectionResult(leftWord, rightWord) {
+  const leftType  = leftWord.subtype;
+  const rightType = rightWord.subtype;
   if (leftType === 'punctuation' || rightType === 'punctuation') return { allowed: false, strength: 0 };
-  // article / determiner → adjective or noun
-  if ((leftType === 'article' || leftType === 'determiner') && rightType === 'adjective')   return { allowed: true, strength: 2 };
-  if ((leftType === 'article' || leftType === 'determiner') && isNounType(rightType))       return { allowed: true, strength: 2 };
+  // article → adjective or noun
+  if (leftType === 'article' && rightType === 'adjective') return { allowed: true, strength: 2 };
+  if (leftType === 'article' && isNounType(rightType)) {
+    const articleText = (leftWord.displayText || leftWord.text).toLowerCase();
+    if ((articleText === 'a' || articleText === 'an') && rightWord.uncountable) {
+      return { allowed: false, strength: 0 };
+    }
+    return { allowed: true, strength: 2 };
+  }
+  if (leftType === 'determiner' && rightType === 'adjective') return { allowed: true, strength: 2 };
+  if (leftType === 'determiner' && isNounType(rightType))     return { allowed: true, strength: 2 };
 
   // adjective → adjective (stacking) or noun
   if (leftType === 'adjective' && rightType === 'adjective')  return { allowed: true, strength: 1 };
@@ -1121,10 +1131,10 @@ function getConnectionResult(leftType, rightType) {
   return { allowed: false, strength: 0 };
 }
 
-function canConnect(draggedType, targetType, side) {
-  const leftType  = side === 'right' ? draggedType : targetType;
-  const rightType = side === 'right' ? targetType  : draggedType;
-  return getConnectionResult(leftType, rightType);
+function canConnect(draggedWord, targetWord, side) {
+  const leftWord  = side === 'right' ? draggedWord : targetWord;
+  const rightWord = side === 'right' ? targetWord  : draggedWord;
+  return getConnectionResult(leftWord, rightWord);
 }
 
 // ═══════════════════════════════════════════════════
@@ -1585,7 +1595,7 @@ function isRailComplete(rail) {
   if (clusters.length !== 1) return false;
   const words = clusters[0];
   for (let i = 0; i < words.length - 1; i++) {
-    if (!getConnectionResult(words[i].subtype, words[i + 1].subtype).allowed) {
+    if (!getConnectionResult(words[i], words[i + 1]).allowed) {
       return false; // Sequence is physically touching but grammatically invalid
     }
   }
@@ -1829,7 +1839,7 @@ function calcRepulsion(x, y, el) {
       const tCX = tRect.left + tRect.width / 2;
       const tCY = tRect.top  + tRect.height / 2;
       const side = elCX < tCX ? 'right' : 'left';
-      const conn = canConnect(wordData.subtype, w.subtype, side);
+      const conn = canConnect(wordData, w, side);
       if (!conn.allowed) {
         const dist = Math.sqrt(Math.pow(elCX - tCX, 2) + Math.pow(elCY - tCY, 2));
         if (dist < minDist && dist > 0) {
@@ -1946,7 +1956,7 @@ function checkMagnetism(x, y, el) {
       const tCY   = tRect.top  + tRect.height / 2;
       const dist  = Math.sqrt(Math.pow(dragCX - tCX, 2) + Math.pow(dragCY - tCY, 2));
       const side  = dragCX < tCX ? 'right' : 'left';
-      const conn  = canConnect(wordData.subtype, w.subtype, side);
+      const conn  = canConnect(wordData, w, side);
       if (conn.allowed) {
         if (dist < FIELD_DISTANCE) {
           const score = conn.strength - dist / FIELD_DISTANCE;
@@ -1984,8 +1994,8 @@ function snapToRail(rail, result) {
   // Check validity at insert position
   const leftNeighbor  = insertIndex > 0 ? rail.words[insertIndex - 1] : null;
   const rightNeighbor = insertIndex < rail.words.length ? rail.words[insertIndex] : null;
-  const leftOk  = !leftNeighbor  || getConnectionResult(leftNeighbor.subtype,  wordData.subtype).allowed;
-  const rightOk = !rightNeighbor || getConnectionResult(wordData.subtype, rightNeighbor.subtype).allowed;
+  const leftOk  = !leftNeighbor  || getConnectionResult(leftNeighbor,  wordData).allowed;
+  const rightOk = !rightNeighbor || getConnectionResult(wordData, rightNeighbor).allowed;
   const isValid = leftOk && rightOk;
 
   const isReadyToLock = wordData.subtype === 'punctuation' && insertIndex === rail.words.length && isRailComplete(rail);
@@ -2129,8 +2139,8 @@ function shakeKickFromRail(wordData, rail, insertIndex) {
   // Word stays in rail.words — determine kick direction from its neighbors
   const leftNeighbor  = (insertIndex - 1 >= 0) ? rail.words[insertIndex - 1] : null;
   const rightNeighbor = (insertIndex + 1 < rail.words.length) ? rail.words[insertIndex + 1] : null;
-  const leftBad  = leftNeighbor  && !getConnectionResult(leftNeighbor.subtype, wordData.subtype).allowed;
-  const rightBad = rightNeighbor && !getConnectionResult(wordData.subtype, rightNeighbor.subtype).allowed;
+  const leftBad  = leftNeighbor  && !getConnectionResult(leftNeighbor, wordData).allowed;
+  const rightBad = rightNeighbor && !getConnectionResult(wordData, rightNeighbor).allowed;
 
   // Kick away from bad side; if both bad or ambiguous, kick right
   let kickDir = 1;
@@ -2177,8 +2187,12 @@ function lockSentence(rail, punctData, punctElOverride) {
     const lastX = lastWord.x !== undefined ? lastWord.x : 0;
     punctEl.classList.remove('dragging', 'dancing');
     punctEl.style.position = 'absolute';
-    // block top ≈ 12px, block height ≈ 48px → baseline at 60px; period height = 32px → top = 28px
-    punctEl.style.top = `${PERIOD_BASELINE_OFFSET}px`;
+    // period is a 16px bead; other marks are tall typographic characters
+    if (punctChar === '.') {
+      punctEl.style.top = '44px'; // align bead with text baseline
+    } else {
+      punctEl.style.top = '16px'; // align typographic marks with block text
+    }
     punctEl.style.transform = 'none';
     punctEl.style.left = `${lastX + (lastEl ? lastEl.offsetWidth : 0) + 2}px`;
     punctEl.style.zIndex = '';
@@ -2349,8 +2363,8 @@ function onDragEnd(e) {
     // Check validity at chosen position
     const leftNeighbor  = insertIndex > 0 ? targetRail.words[insertIndex - 1] : null;
     const rightNeighbor = insertIndex < targetRail.words.length ? targetRail.words[insertIndex] : null;
-    const leftOk  = !leftNeighbor  || getConnectionResult(leftNeighbor.subtype,  wordData.subtype).allowed;
-    const rightOk = !rightNeighbor || getConnectionResult(wordData.subtype, rightNeighbor.subtype).allowed;
+    const leftOk  = !leftNeighbor  || getConnectionResult(leftNeighbor,  wordData).allowed;
+    const rightOk = !rightNeighbor || getConnectionResult(wordData, rightNeighbor).allowed;
     const isValid = leftOk && rightOk;
 
     const isReadyToLock = wordData.subtype === 'punctuation' && insertIndex === targetRail.words.length && isRailComplete(targetRail);
