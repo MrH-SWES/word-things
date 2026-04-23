@@ -123,6 +123,58 @@
       border-radius: 3px;
       overflow: visible;
       position: relative;
+      /* The compact header bar is superseded by the full-width xp-strip-container below
+         the header. Hiding it here keeps the DOM element (referenced by xpFill) available
+         while the visual progress is shown in the strip instead. */
+      display: none;
+    }
+
+    /* ── XP STRIP (full-width progress bar) ── */
+    .xp-strip-container {
+      height: 28px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: relative;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .xp-strip-track {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 6px;
+      background: rgba(0,0,0,0.07);
+      overflow: visible;
+    }
+    .xp-strip-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--verb), #ff6b6b);
+      transition: width 0.6s var(--spring);
+      width: 0%;
+    }
+    .xp-hashmark {
+      position: absolute;
+      top: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+    .xp-hash-line {
+      width: 2px;
+      height: 9px;
+      background: rgba(0,0,0,0.32);
+      border-radius: 1px;
+      flex-shrink: 0;
+    }
+    .xp-hash-label {
+      font-family: 'Lexend', sans-serif;
+      font-size: 0.42rem;
+      font-weight: 800;
+      white-space: nowrap;
+      color: var(--text-gray);
+      letter-spacing: 0.3px;
+      margin-top: 2px;
     }
     .xp-bar-fill {
       height: 100%;
@@ -434,13 +486,22 @@
       border-right: 1px solid var(--border-mid);
     }
 
-    /* ── PERIOD BEAD DANCE ── */
-    @keyframes beadDance {
+    /* ── PERIOD BEAD DANCE (hyperWiggle) ── */
+    @keyframes hyperWiggle {
       0%,100% { transform: translateY(0) rotate(0deg) scale(1); }
-      25%     { transform: translateY(-5px) rotate(-8deg) scale(1.05); }
-      75%     { transform: translateY(-3px) rotate(8deg) scale(1.05); }
+      8%      { transform: translateY(-9px) rotate(-18deg) scale(1.2); }
+      16%     { transform: translateY(-4px) rotate(16deg) scale(1.12); }
+      24%     { transform: translateY(-12px) rotate(-15deg) scale(1.25); }
+      32%     { transform: translateY(-5px) rotate(14deg) scale(1.1); }
+      40%     { transform: translateY(-11px) rotate(-12deg) scale(1.2); }
+      48%     { transform: translateY(-3px) rotate(13deg) scale(1.08); }
+      56%     { transform: translateY(-9px) rotate(-10deg) scale(1.17); }
+      64%     { transform: translateY(-4px) rotate(10deg) scale(1.1); }
+      72%     { transform: translateY(-8px) rotate(-8deg) scale(1.14); }
+      80%     { transform: translateY(-2px) rotate(8deg) scale(1.06); }
+      90%     { transform: translateY(-6px) rotate(-5deg) scale(1.1); }
     }
-    .dancing { animation: beadDance 0.9s ease-in-out infinite; }
+    .dancing { animation: hyperWiggle 0.42s ease-in-out infinite; }
 
     /* ── SCORE BADGE ── */
     .score-badge {
@@ -844,6 +905,12 @@
   <button class="reset-btn" onclick="hardReset()" title="Hard Reset — wipes all progress" aria-label="Hard reset: erase all progress and return to level 1">↺ Reset</button>
 </header>
 
+<div class="xp-strip-container" id="xpStripContainer">
+  <div class="xp-strip-track" id="xpStripTrack">
+    <div class="xp-strip-fill" id="xpStripFill"></div>
+  </div>
+</div>
+
 <div class="main-area">
   <div class="canvas-area" id="canvasArea">
     <div class="rails-container" id="railsContainer"></div>
@@ -985,15 +1052,16 @@ const SCORE_VALUES = {
 };
 
 // ── PHYSICS CONSTANTS ──
-const SNAP_DISTANCE   = 90;   // ~1 card width before snapping (avg block ~80px + gap)
-const FIELD_DISTANCE  = 130;  // attract glow range
-const REPEL_DISTANCE  = 56;
-const JITTER_START    = 2.0;
-const JITTER_DECAY    = 0.87;
-const SPRING_DURATION = 200;
-const FIELD_BASE      = 0.7;
+const SNAP_DISTANCE        = 90;   // ~1 card width before snapping (avg block ~80px + gap)
+const FIELD_DISTANCE       = 130;  // attract glow range
+const REPEL_DISTANCE       = 56;
+const JITTER_START         = 2.0;
+const JITTER_DECAY         = 0.87;
+const SPRING_DURATION      = 200;
+const FIELD_BASE           = 0.7;
 const FIELD_STRENGTH_SCALE = 0.15;
-const FIELD_BLOCKED   = 0.5;
+const FIELD_BLOCKED        = 0.5;
+const SNAP_LINK_TOLERANCE  = 20;   // px — max extra gap for two words to still be considered snapped together
 const EMPTY_RAIL_SCORE = 10;
 const XP_BAR_TRANSITION_MS = 600; // must match .xp-bar-fill transition duration in CSS
 
@@ -1153,48 +1221,85 @@ function renderRails() {
       const line = document.createElement('div');
       line.className = 'rail-line';
       railEl.appendChild(line);
-      const badge = document.createElement('div');
-      badge.className = 'score-badge';
-      badge.id = `score-badge-${rail.id}`;
-      railEl.appendChild(badge);
       container.appendChild(railEl);
     }
-    updateScoreBadge(rail);
+    updateScoreBadges(rail);
   });
 }
 
-function updateScoreBadge(rail) {
-  const badge = document.getElementById(`score-badge-${rail.id}`);
-  if (!badge) return;
-  if (rail.potentialScore > 0 && !rail.isLocked) {
-    badge.textContent = `${rail.potentialScore} pts`;
-    badge.classList.add('has-value');
-    if (rail.words.length > 0) {
-      const firstWord = rail.words[0];
-      const lastWord  = rail.words[rail.words.length - 1];
-      const firstX    = firstWord.x !== undefined ? firstWord.x : RAIL_PADDING;
-      const lastEl    = document.getElementById(`block-${lastWord.id}`);
-      const lastW     = lastEl ? (lastEl.offsetWidth || estimateBlockWidth(lastWord.displayText || lastWord.text))
-                                : estimateBlockWidth(lastWord.displayText || lastWord.text);
-      const lastX     = (lastWord.x !== undefined ? lastWord.x : RAIL_PADDING) + lastW;
-      const centerX   = (firstX + lastX) / 2;
-      badge.style.left      = `${centerX}px`;
-      badge.style.transform = 'translateX(-50%)';
+function updateScoreBadges(rail) {
+  const railEl = document.getElementById(`rail-${rail.id}`);
+  if (!railEl) return;
+  // Remove all existing dynamically-created score badges
+  railEl.querySelectorAll('.score-badge').forEach(b => b.remove());
+  if (rail.isLocked) return;
+
+  const clusters = getSnapClusters(rail);
+  clusters.forEach(cluster => {
+    if (cluster.length < 2) return; // single word = 0 pts, no badge
+    const hasN = cluster.some(w => isNounType(w.subtype));
+    const hasV = cluster.some(w => isVerbType(w.subtype));
+    let score = cluster.reduce((s, w) => s + (SCORE_VALUES[w.subtype] || 2), 0);
+    if (hasN && hasV) score += 3;
+    if (score === 0) return;
+
+    const badge = document.createElement('div');
+    badge.className = 'score-badge has-value';
+    badge.textContent = `${score} pts`;
+
+    const firstX  = cluster[0].x !== undefined ? cluster[0].x : RAIL_PADDING;
+    const lastWord = cluster[cluster.length - 1];
+    const lastEl   = document.getElementById(`block-${lastWord.id}`);
+    const lastW    = lastEl ? (lastEl.offsetWidth || estimateBlockWidth(lastWord.displayText || lastWord.text))
+                             : estimateBlockWidth(lastWord.displayText || lastWord.text);
+    const lastX    = (lastWord.x !== undefined ? lastWord.x : RAIL_PADDING) + lastW;
+    const centerX  = (firstX + lastX) / 2;
+    badge.style.left      = `${centerX}px`;
+    badge.style.transform = 'translateX(-50%)';
+    railEl.appendChild(badge);
+  });
+}
+
+// Returns array of arrays: each sub-array is a group of consecutive words whose
+// x-positions indicate they are magnetically snapped together (gap ≈ BLOCK_GAP).
+function getSnapClusters(rail) {
+  if (rail.words.length === 0) return [];
+  // Sort a copy by x position so free-dropped words in arbitrary order are handled
+  const sorted = [...rail.words].sort((a, b) => (a.x !== undefined ? a.x : RAIL_PADDING) - (b.x !== undefined ? b.x : RAIL_PADDING));
+  const clusters = [];
+  let current = [sorted[0]];
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const curr = sorted[i];
+    const prevEl = document.getElementById(`block-${prev.id}`);
+    const prevW = prevEl ? (prevEl.offsetWidth || estimateBlockWidth(prev.displayText || prev.text)) : estimateBlockWidth(prev.displayText || prev.text);
+    const prevX = prev.x !== undefined ? prev.x : RAIL_PADDING;
+    const currX = curr.x !== undefined ? curr.x : RAIL_PADDING;
+    const expectedRight = prevX + prevW + BLOCK_GAP;
+    if (currX <= expectedRight + SNAP_LINK_TOLERANCE) {
+      current.push(curr);
+    } else {
+      clusters.push(current);
+      current = [curr];
     }
-  } else {
-    badge.textContent = '';
-    badge.classList.remove('has-value');
-    badge.style.left      = '';
-    badge.style.transform = '';
   }
+  clusters.push(current);
+  return clusters;
 }
 
 function recalcRailScore(rail) {
-  let score = 0;
-  rail.words.forEach(w => { score += SCORE_VALUES[w.subtype] || 2; });
-  if (rail.hasNoun && rail.hasVerb) score += 3;
-  rail.potentialScore = score;
-  updateScoreBadge(rail);
+  const clusters = getSnapClusters(rail);
+  let total = 0;
+  clusters.forEach(cluster => {
+    if (cluster.length < 2) return; // single unlinked word = 0 pts
+    const hasN = cluster.some(w => isNounType(w.subtype));
+    const hasV = cluster.some(w => isVerbType(w.subtype));
+    let score = cluster.reduce((s, w) => s + (SCORE_VALUES[w.subtype] || 2), 0);
+    if (hasN && hasV) score += 3;
+    total += score;
+  });
+  rail.potentialScore = total;
+  updateScoreBadges(rail);
 }
 
 // ═══════════════════════════════════════════════════
@@ -1276,7 +1381,7 @@ function layoutRail(rail) {
     el.style.top  = `${topOffset}px`;
     applyAutoCapitalize(rail, wordData, idx);
   });
-  updateScoreBadge(rail);
+  updateScoreBadges(rail);
 }
 
 function applyAutoCapitalize(rail, wordData, idx) {
@@ -1318,7 +1423,7 @@ function layoutRailAnimated(rail) {
     setTimeout(() => { el.style.transition = ''; }, SPRING_DURATION + 50);
     applyAutoCapitalize(rail, wordData, idx);
   });
-  updateScoreBadge(rail);
+  updateScoreBadges(rail);
 }
 
 // ═══════════════════════════════════════════════════
@@ -1328,6 +1433,14 @@ function layoutRailAnimated(rail) {
 function startJitter(railId) {
   const rail = getRailById(railId);
   if (!rail || rail.isLocked) return;
+  // Only jitter the cluster that has both a noun and a verb — not every word on the rail
+  const clusters = getSnapClusters(rail);
+  const activeCluster = clusters.find(c =>
+    c.length > 1 &&
+    c.some(w => isNounType(w.subtype)) &&
+    c.some(w => isVerbType(w.subtype))
+  );
+  if (!activeCluster) return;
   rail.jitterAmplitude = JITTER_START;
   rail.scalePulse = 1.025;
   if (state.physicsLoops[railId]) cancelAnimationFrame(state.physicsLoops[railId]);
@@ -1337,7 +1450,7 @@ function startJitter(railId) {
     if (r.jitterAmplitude > 0.06 || r.scalePulse > 1) {
       const dx = Math.sin(Date.now() / 30) * r.jitterAmplitude;
       const dy = Math.cos(Date.now() / 45) * (r.jitterAmplitude * 0.1);
-      r.words.forEach(w => {
+      activeCluster.forEach(w => {
         const el = document.getElementById(`block-${w.id}`);
         if (el) el.style.transform = `translate(${dx}px,${dy}px) scale(${r.scalePulse})`;
       });
@@ -1345,7 +1458,7 @@ function startJitter(railId) {
       if (r.scalePulse > 1) { r.scalePulse -= 0.005; if (r.scalePulse < 1) r.scalePulse = 1; }
       state.physicsLoops[railId] = requestAnimationFrame(loop);
     } else {
-      r.words.forEach(w => {
+      activeCluster.forEach(w => {
         const el = document.getElementById(`block-${w.id}`);
         if (el) { el.style.transform = 'translate(0,0) scale(1)'; el.classList.add('breathing'); }
       });
@@ -1448,9 +1561,12 @@ function updateVerbAgreement(rail) {
 // ═══════════════════════════════════════════════════
 
 // A rail is "complete" (ready for terminal punctuation) if it has a noun+verb,
-// AND if the subject noun is a countable singular noun it must be preceded by an article/determiner.
+// ALL words form a single magnetically-snapped cluster, and article rules are satisfied.
 function isRailComplete(rail) {
   if (rail.isLocked || !rail.hasNoun || !rail.hasVerb) return false;
+  // All words must be part of one linked cluster — no detached words allowed
+  const clusters = getSnapClusters(rail);
+  if (clusters.length !== 1) return false;
   const subjectNoun = rail.words.find(w => w.subtype === 'noun');
   if (subjectNoun && subjectNoun.countable && subjectNoun.agreement === '3rd-singular') {
     const nounIdx = rail.words.findIndex(w => w.id === subjectNoun.id);
@@ -2005,40 +2121,52 @@ function lockSentence(rail, punct) {
   const sentenceText = rawWords.join(' ') + punct;
   const railEl = document.getElementById(`rail-${rail.id}`);
 
-  // Apply neonPulse animation — clear inline transform first so the CSS animation takes over
-  rail.words.forEach(w => {
-    const el = document.getElementById(`block-${w.id}`);
-    if (el) {
-      el.style.transform = '';
-      el.classList.remove('snapped', 'breathing');
-      el.classList.add('locked', 'neon-pulsing');
-    }
-  });
-
-  const flash = document.getElementById('lockFlash');
-  flash.classList.add('flash');
-  setTimeout(() => flash.classList.remove('flash'), 450);
-
   const xpEarned = rail.potentialScore;
 
-  // Wait for neonPulse (600ms) before awarding XP and transferring to vault
+  // a) Delay locking visual pulse by 500ms after punctuation snap
   setTimeout(() => {
     rail.words.forEach(w => {
       const el = document.getElementById(`block-${w.id}`);
-      if (el) el.classList.remove('neon-pulsing');
+      if (el) {
+        el.style.transform = '';
+        el.classList.remove('snapped', 'breathing');
+        el.classList.add('locked', 'neon-pulsing');
+      }
     });
-    const xpPos = railEl ? railEl.getBoundingClientRect() : { left: window.innerWidth / 2, top: window.innerHeight / 2 };
-    showFloatingXP(xpEarned, xpPos.left + 40, xpPos.top);
-    addXP(xpEarned);
+
+    const flash = document.getElementById('lockFlash');
+    flash.classList.add('flash');
+    setTimeout(() => flash.classList.remove('flash'), 450);
+
+    // Wait for neonPulse (620ms) then b) additional 1000ms before points tally
     setTimeout(() => {
-      addToVault(sentenceText, xpEarned);
-      const idx = state.rails.findIndex(r => r.id === rail.id);
-      if (idx !== -1) { state.rails.splice(idx, 1); railEl.remove(); renderRails(); }
-      ensureEmptyRail();
-      checkPeriodAvailability();
-      saveState();
-    }, 750);
-  }, 620);
+      rail.words.forEach(w => {
+        const el = document.getElementById(`block-${w.id}`);
+        if (el) el.classList.remove('neon-pulsing');
+      });
+
+      setTimeout(() => {
+        const xpPos = railEl ? railEl.getBoundingClientRect() : { left: window.innerWidth / 2, top: window.innerHeight / 2 };
+        showFloatingXP(xpEarned, xpPos.left + 40, xpPos.top);
+        addXP(xpEarned, { skipLevelCheck: true });
+
+        // c) Check level-up 1000ms after the XP bar animation finishes
+        setTimeout(() => {
+          checkLevelUp();
+        }, XP_BAR_TRANSITION_MS + 1000);
+
+        // Clean up and move to vault after 750ms
+        setTimeout(() => {
+          addToVault(sentenceText, xpEarned);
+          const idx = state.rails.findIndex(r => r.id === rail.id);
+          if (idx !== -1) { state.rails.splice(idx, 1); railEl.remove(); renderRails(); }
+          ensureEmptyRail();
+          checkPeriodAvailability();
+          saveState();
+        }, 750);
+      }, 1000);
+    }, 620);
+  }, 500);
 
   checkPeriodAvailability();
 }
@@ -2270,10 +2398,10 @@ function pullFromVault(entry, entryEl) {
 //  XP & LEVELING
 // ═══════════════════════════════════════════════════
 
-function addXP(amount) {
+function addXP(amount, { skipLevelCheck = false } = {}) {
   if (DEV_MODE) return;
   state.xp += amount;
-  updateXPBar(); checkLevelUp(); saveState();
+  updateXPBar(); if (!skipLevelCheck) checkLevelUp(); saveState();
 }
 
 function updateXPBar() {
@@ -2281,15 +2409,55 @@ function updateXPBar() {
   const next = LEVELS.find(l => l.level === state.level + 1);
   const xpMin = cur.xpRequired;
   const xpMax = next ? next.xpRequired : xpMin + 100;
-  const pct   = next ? Math.min((state.xp - xpMin) / (xpMax - xpMin), 1) : 1;
-  document.getElementById('xpFill').style.width = `${pct * 100}%`;
+
+  // ── Header labels ──
   document.getElementById('levelLabel').textContent = `Level ${state.level}`;
   if (next) {
-    const nextName = next.nextLabel || next.unlockLabel;
-    document.getElementById('xpLabel').textContent = `🔓 ${nextName} (${next.xpRequired} XP)`;
+    const nextName = cur.nextLabel || next.unlockLabel;
+    document.getElementById('xpLabel').textContent = `${nextName} (${next.xpRequired} XP)`;
   } else {
     document.getElementById('xpLabel').textContent = '🏆 MAX';
   }
+
+  // ── Full-width strip fill + hashmarks ──
+  const stripFill  = document.getElementById('xpStripFill');
+  const stripTrack = document.getElementById('xpStripTrack');
+  if (!stripFill || !stripTrack) return;
+
+  // Remove old hashmarks
+  stripTrack.querySelectorAll('.xp-hashmark').forEach(h => h.remove());
+
+  let pct;
+  const lv3 = LEVELS.find(l => l.level === 3);
+  const lv4 = LEVELS.find(l => l.level === 4);
+
+  if (state.level === 2 && lv3 && lv4) {
+    // Level 2: scale bar to Level-4 threshold; show hashmarks at Lv3 and Lv4
+    const scaleMax = lv4.xpRequired;
+    pct = Math.min(state.xp / scaleMax, 1);
+
+    const pct3 = (lv3.xpRequired / scaleMax) * 100;
+    const pct4 = 100;
+
+    const h3 = document.createElement('div');
+    h3.className = 'xp-hashmark';
+    h3.style.left = `${pct3}%`;
+    h3.innerHTML = '<div class="xp-hash-line"></div><div class="xp-hash-label">🔓 Adjectives (Lv.3)</div>';
+    stripTrack.appendChild(h3);
+
+    const h4 = document.createElement('div');
+    h4.className = 'xp-hashmark';
+    h4.style.left = `${pct4}%`;
+    h4.innerHTML = '<div class="xp-hash-line"></div><div class="xp-hash-label">Lv.4</div>';
+    stripTrack.appendChild(h4);
+  } else {
+    pct = next ? Math.min((state.xp - xpMin) / (xpMax - xpMin), 1) : 1;
+  }
+
+  stripFill.style.width = `${pct * 100}%`;
+  // Keep the (now-hidden) header fill in sync too
+  const headerFill = document.getElementById('xpFill');
+  if (headerFill) headerFill.style.width = `${pct * 100}%`;
 }
 
 function checkLevelUp() {
@@ -2381,6 +2549,9 @@ function clearInactivityTimer() {
   if (state.inactivityTimer) { clearInterval(state.inactivityTimer); state.inactivityTimer = null; }
 }
 function wiggleNounBank() {
+  // Don't wiggle if a noun/pronoun is already on a rail — the drawer has done its job
+  const hasNounOnRail = state.rails.some(r => !r.isLocked && r.words.some(w => isNounType(w.subtype)));
+  if (hasNounOnRail) return;
   const nounTab = document.querySelector('.bank-tab[data-type="nouns"]');
   if (nounTab) { nounTab.classList.add('wiggling'); setTimeout(() => nounTab.classList.remove('wiggling'), 700); }
   const firstWord = document.querySelector('.bank-word');
