@@ -2002,8 +2002,8 @@ function snapToRail(rail, result) {
       const insertedW = el.offsetWidth || estimateBlockWidth(wordData.displayText || wordData.text);
       const targetW = result.targetEl.offsetWidth || estimateBlockWidth(targetWordData.displayText || targetWordData.text);
       if (result.side === 'right') {
-        // Inserted to the LEFT of target
-        wordData.x = Math.max(RAIL_PADDING, targetX - insertedW - BLOCK_GAP);
+        // Inserted to the LEFT of target — allow negative temporarily; sweep will correct
+        wordData.x = targetX - insertedW - BLOCK_GAP;
       } else {
         // Inserted to the RIGHT of target
         wordData.x = targetX + targetW + BLOCK_GAP;
@@ -2016,6 +2016,15 @@ function snapToRail(rail, result) {
   } else {
     wordData.x = RAIL_PADDING;
   }
+
+  // Forward-sweep: enforce solid-body spacing so front-inserted words push the cluster right
+  let currentMinX = RAIL_PADDING;
+  rail.words.forEach(w => {
+    if (w.x < currentMinX) { w.x = currentMinX; }
+    const wEl = document.getElementById(`block-${w.id}`);
+    const wWidth = wEl ? (wEl.offsetWidth || estimateBlockWidth(w.displayText || w.text)) : estimateBlockWidth(w.displayText || w.text);
+    currentMinX = w.x + wWidth + BLOCK_GAP;
+  });
 
   const railEl = document.getElementById(`rail-${rail.id}`);
   el.style.position = 'absolute';
@@ -2106,6 +2115,11 @@ function shakeKickFromRail(wordData, rail, insertIndex) {
   // Kick away from bad side; if both bad or ambiguous, kick right
   let kickDir = 1;
   if (rightBad && !leftBad) kickDir = -1;
+
+  // Wall collision: if kicking left would hit the boundary, reverse to jump over the cluster
+  if (kickDir === -1 && (wordData.x - (SNAP_DISTANCE + 10) < RAIL_PADDING)) {
+    kickDir = 1;
+  }
 
   // Push word outside the magnetic zone (> SNAP_DISTANCE) and clamp to rail padding
   wordData.x += kickDir * (SNAP_DISTANCE + 10);
