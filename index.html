@@ -1037,8 +1037,8 @@ const WORD_BANK = {
 const LEVELS = [
   { level: 1, xpRequired: 0,   unlocks: ["nouns","verbs"],                  unlockLabel: "Nouns & Verbs",                     nextLabel: "Articles",                  punctUnlocks: ["."] },
   { level: 2, xpRequired: 5,   unlocks: ["articles"],                        unlockLabel: "Articles unlocked",                  nextLabel: "Milestone",                 punctUnlocks: [] },
-  { level: 3, xpRequired: 20,  unlocks: [],                                  unlockLabel: "10 nouns & verbs mastered",          nextLabel: "Adjectives & Determiners",  punctUnlocks: [] },
-  { level: 4, xpRequired: 45,  unlocks: ["adjectives","determiners"],        unlockLabel: "Adjectives & Determiners unlocked",  nextLabel: "! and ?",                   punctUnlocks: [] },
+  { level: 3, xpRequired: 20,  unlocks: ["adjectives"],                        unlockLabel: "10 nouns & verbs mastered",          nextLabel: "Adjectives",                punctUnlocks: [] },
+  { level: 4, xpRequired: 45,  unlocks: ["determiners"],                       unlockLabel: "Determiners unlocked",               nextLabel: "Determiners",               punctUnlocks: [] },
   { level: 5, xpRequired: 80,  unlocks: [],                                  unlockLabel: "! and ? unlocked",                   nextLabel: "Adverbs",                   punctUnlocks: ["!","?"] },
   { level: 6, xpRequired: 130, unlocks: ["adverbs"],                         unlockLabel: "Adverbs unlocked",                   nextLabel: "Prepositions",              punctUnlocks: [] },
   { level: 7, xpRequired: 200, unlocks: ["prepositions"],                    unlockLabel: "Prepositions unlocked",              nextLabel: "Conjunctions",              punctUnlocks: [] },
@@ -1767,14 +1767,17 @@ function commitIndividualDrag(dragState) {
 }
 
 function commitGroupDrag(dragState) {
-  // Group drag: move all words on the rail together, keeping relative positions
+  // Group drag: move only the snapped cluster containing the dragged word
   const rail = getRailById(dragState.railId);
   if (!rail || rail.isLocked) return false;
   dragState.pendingDirection = false;
   dragState.isGroupDrag = true;
-  // Store initial x of each word for delta computation
+  // Find the cluster that contains the dragged word
+  const clusters = getSnapClusters(rail);
+  const activeCluster = clusters.find(c => c.some(w => w.id === dragState.wordData.id)) || [];
+  // Store initial x only for words in the active cluster
   dragState.groupStartXMap = {};
-  rail.words.forEach(w => { dragState.groupStartXMap[w.id] = w.x !== undefined ? w.x : RAIL_PADDING; });
+  activeCluster.forEach(w => { dragState.groupStartXMap[w.id] = w.x !== undefined ? w.x : RAIL_PADDING; });
   return true;
 }
 
@@ -1848,7 +1851,9 @@ function onDragMove(e) {
     const rail = getRailById(state.dragging.railId);
     if (!rail) { state.dragging = null; return; }
     rail.words.forEach(w => {
-      w.x = Math.max(0, (state.dragging.groupStartXMap[w.id] !== undefined ? state.dragging.groupStartXMap[w.id] : RAIL_PADDING) + deltaX);
+      if (state.dragging.groupStartXMap[w.id] !== undefined) {
+        w.x = Math.max(0, state.dragging.groupStartXMap[w.id] + deltaX);
+      }
     });
     layoutRail(rail);
     return;
@@ -2075,7 +2080,7 @@ function shakeKickFromRail(wordData, rail, insertIndex) {
   if (rightBad && !leftBad) kickDir = -1;
 
   // Push word outside the magnetic zone (> SNAP_DISTANCE) and clamp to rail padding
-  wordData.x += kickDir * KICK_DISTANCE_PX;
+  wordData.x += kickDir * (SNAP_DISTANCE + 10);
   wordData.x = Math.max(RAIL_PADDING, wordData.x);
 
   updateRailAnalysis(rail);
