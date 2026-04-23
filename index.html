@@ -157,11 +157,14 @@
     .pts-hashmark {
       position: absolute;
       top: 0;
+      height: 12px;
       display: flex;
       flex-direction: column;
       align-items: center;
+      justify-content: center;
       transform: translateX(-50%);
       pointer-events: none;
+      overflow: visible;
     }
     .pts-hash-line {
       width: 2px;
@@ -169,6 +172,26 @@
       background: rgba(0,0,0,0.32);
       border-radius: 1px;
       flex-shrink: 0;
+    }
+    .pts-hash-label-top {
+      font-family: 'Lexend', sans-serif;
+      font-size: 0.42rem;
+      font-weight: 800;
+      white-space: nowrap;
+      color: var(--text-gray);
+      letter-spacing: 0.3px;
+      position: absolute;
+      bottom: calc(100% + 2px);
+    }
+    .pts-hash-label-bottom {
+      font-family: 'Lexend', sans-serif;
+      font-size: 0.42rem;
+      font-weight: 800;
+      white-space: nowrap;
+      color: var(--text-gray);
+      letter-spacing: 0.3px;
+      position: absolute;
+      top: calc(100% + 2px);
     }
     .pts-hash-label {
       font-family: 'Lexend', sans-serif;
@@ -1036,6 +1059,7 @@ const SCORE_VALUES = {
 const SNAP_DISTANCE        = 90;   // ~1 card width before snapping (avg block ~80px + gap)
 const FIELD_DISTANCE       = 130;  // attract glow range
 const REPEL_DISTANCE       = 56;
+const KICK_DISTANCE_PX     = 110;  // push distance on invalid drop rejection (> SNAP_DISTANCE)
 const JITTER_START         = 2.0;
 const JITTER_DECAY         = 0.87;
 const SPRING_DURATION      = 200;
@@ -2037,19 +2061,12 @@ function ensureEmptyRail() {
 // ═══════════════════════════════════════════════════
 
 function shakeKickFromRail(wordData, rail, insertIndex) {
-  // Remove the word from the rail data
   const idx = rail.words.findIndex(w => w.id === wordData.id);
   if (idx === -1) { layoutRailAnimated(rail); ensureEmptyRail(); return; }
-  rail.words.splice(idx, 1);
-  updateRailAnalysis(rail); recalcRailScore(rail);
 
-  const el = document.getElementById(`block-${wordData.id}`);
-  if (!el) { layoutRailAnimated(rail); ensureEmptyRail(); return; }
-
-  // Determine kick direction: away from the bad neighbor
-  // After removal, original left neighbor is at insertIndex-1, right at insertIndex
+  // Word stays in rail.words — determine kick direction from its neighbors
   const leftNeighbor  = (insertIndex - 1 >= 0) ? rail.words[insertIndex - 1] : null;
-  const rightNeighbor = (insertIndex   < rail.words.length) ? rail.words[insertIndex] : null;
+  const rightNeighbor = (insertIndex + 1 < rail.words.length) ? rail.words[insertIndex + 1] : null;
   const leftBad  = leftNeighbor  && !getConnectionResult(leftNeighbor.subtype, wordData.subtype).allowed;
   const rightBad = rightNeighbor && !getConnectionResult(wordData.subtype, rightNeighbor.subtype).allowed;
 
@@ -2057,29 +2074,14 @@ function shakeKickFromRail(wordData, rail, insertIndex) {
   let kickDir = 1;
   if (rightBad && !leftBad) kickDir = -1;
 
-  const KICK_PX = 90;
+  // Push word outside the magnetic zone (> SNAP_DISTANCE) and clamp to rail padding
+  wordData.x += kickDir * KICK_DISTANCE_PX;
+  wordData.x = Math.max(RAIL_PADDING, wordData.x);
 
-  // Lift block to fixed coords so it can animate freely
-  const rect = el.getBoundingClientRect();
-  el.style.position = 'fixed';
-  el.style.left = `${rect.left}px`;
-  el.style.top  = `${rect.top}px`;
-  el.style.zIndex = '500';
-  document.body.appendChild(el);
-
-  // Re-layout the rail without this word
+  updateRailAnalysis(rail);
+  recalcRailScore(rail);
   layoutRailAnimated(rail);
-
-  // Animate the kick outward then fade
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      el.style.transition = `left 0.32s var(--spring), opacity 0.28s ease 0.08s, transform 0.32s ease`;
-      el.style.left    = `${rect.left + kickDir * KICK_PX}px`;
-      el.style.opacity = '0';
-      el.style.transform = 'scale(0.82)';
-      setTimeout(() => { el.remove(); ensureEmptyRail(); checkPeriodAvailability(); }, 420);
-    });
-  });
+  checkPeriodAvailability();
 }
 
 // ═══════════════════════════════════════════════════
@@ -2402,8 +2404,6 @@ function addPoints(amount, { skipLevelCheck = false } = {}) {
 function updateXPBar() {
   const cur  = LEVELS.find(l => l.level === state.level) || LEVELS[0];
   const next = LEVELS.find(l => l.level === state.level + 1);
-  const xpMin = cur.xpRequired;
-  const xpMax = next ? next.xpRequired : xpMin + 100;
 
   // ── Header labels ──
   document.getElementById('levelLabel').textContent = `Level ${state.level}`;
@@ -2422,31 +2422,25 @@ function updateXPBar() {
   // Remove old hashmarks
   stripTrack.querySelectorAll('.pts-hashmark').forEach(h => h.remove());
 
-  let pct;
-  const lv3 = LEVELS.find(l => l.level === 3);
-  const lv4 = LEVELS.find(l => l.level === 4);
+  // Fixed 0–50 pt scale
+  const MAX_VISIBLE_PTS = 50;
+  const pct = Math.min(state.xp / MAX_VISIBLE_PTS, 1);
 
-  if (state.level === 2 && lv3 && lv4) {
-    // Level 2: scale bar to Level-4 threshold; show hashmarks at Lv3 and Lv4
-    const scaleMax = lv4.xpRequired;
-    pct = Math.min(state.xp / scaleMax, 1);
-
-    const pct3 = (lv3.xpRequired / scaleMax) * 100;
-    const pct4 = 100;
-
-    const h3 = document.createElement('div');
-    h3.className = 'pts-hashmark';
-    h3.style.left = `${pct3}%`;
-    h3.innerHTML = '<div class="pts-hash-line"></div><div class="pts-hash-label">🔓 Adjectives (Lv.3)</div>';
-    stripTrack.appendChild(h3);
-
-    const h4 = document.createElement('div');
-    h4.className = 'pts-hashmark';
-    h4.style.left = `${pct4}%`;
-    h4.innerHTML = '<div class="pts-hash-line"></div><div class="pts-hash-label">Lv.4</div>';
-    stripTrack.appendChild(h4);
-  } else {
-    pct = next ? Math.min((state.xp - xpMin) / (xpMax - xpMin), 1) : 1;
+  // Render a hashmark for every level milestone that falls within the visible scale
+  for (let i = 0; i < LEVELS.length; i++) {
+    const level = LEVELS[i];
+    if (level.xpRequired > 0 && level.xpRequired <= MAX_VISIBLE_PTS) {
+      const markerPct = (level.xpRequired / MAX_VISIBLE_PTS) * 100;
+      const topLabel  = i > 0 ? LEVELS[i - 1].nextLabel : level.unlockLabel;
+      const h = document.createElement('div');
+      h.className = 'pts-hashmark';
+      h.style.left = `${markerPct}%`;
+      h.innerHTML =
+        `<div class="pts-hash-label-top">${topLabel}</div>` +
+        `<div class="pts-hash-line"></div>` +
+        `<div class="pts-hash-label-bottom">Lv ${level.level}</div>`;
+      stripTrack.appendChild(h);
+    }
   }
 
   stripFill.style.width = `${pct * 100}%`;
