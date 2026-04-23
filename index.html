@@ -490,6 +490,16 @@
       transform: scale(1.12) translateY(-2px);
     }
 
+    .type-punctuation {
+      width: 32px; min-width: 32px; height: 32px;
+      border-radius: 50%;
+      padding: 0;
+      background: var(--surface);
+      border: 2px solid var(--border-mid);
+      color: var(--text-main);
+      font-weight: 900;
+    }
+
     .punct-tray-label {
       font-size: 0.5rem;
       font-weight: 800;
@@ -1079,6 +1089,7 @@ function isVerbType(t) { return t === 'verb-intransitive' || t === 'verb-transit
 
 // Pure adjacency: is [leftType → rightType] valid?
 function getConnectionResult(leftType, rightType) {
+  if (leftType === 'punctuation' || rightType === 'punctuation') return { allowed: false, strength: 0 };
   // article / determiner → adjective or noun
   if ((leftType === 'article' || leftType === 'determiner') && rightType === 'adjective')   return { allowed: true, strength: 2 };
   if ((leftType === 'article' || leftType === 'determiner') && isNounType(rightType))       return { allowed: true, strength: 2 };
@@ -1710,17 +1721,21 @@ function startDragPunct(e, punct, sourceEl) {
   _activateTouchMove();
   const pos  = getEventPos(e);
   const rect = sourceEl.getBoundingClientRect();
+  const newWordData = { id: state.idCounter++, text: punct, displayText: punct, subtype: 'punctuation' };
   const el = document.createElement('div');
-  el.className = 'punct-mark';
-  el.style.position = 'fixed';
+  el.className = 'word-block type-punctuation dragging';
+  el.id = `block-${newWordData.id}`;
   el.style.left = `${rect.left}px`;
   el.style.top  = `${rect.top}px`;
+  el.style.position = 'fixed';
   el.style.zIndex = '9000';
-  el.style.cursor = 'grabbing';
-  el.textContent = punct;
-  el.dataset.punct = punct;
+  const textSpan = document.createElement('span');
+  textSpan.className = 'block-text';
+  textSpan.textContent = punct;
+  el.appendChild(textSpan);
   document.body.appendChild(el);
-  state.dragging = { el, isPunct: true, punct, offsetX: pos.x - rect.left, offsetY: pos.y - rect.top, fromBank: false, sourceRailId: null };
+  state.dragging = { el, wordData: newWordData, offsetX: pos.x - rect.left, offsetY: pos.y - rect.top, fromBank: false, sourceRailId: null };
+  state.dragBlocked = false;
 }
 
 // ─── DRAG — from rail ───
@@ -1903,6 +1918,20 @@ function checkMagnetism(x, y, el) {
   // Only check rails that have words — empty rails snap on drop only, not during drag
   state.rails.forEach(rail => {
     if (rail.isLocked || rail.words.length === 0) return;
+
+    // Punctuation blocks skip normal word magnetism; they only trigger lockSentence
+    if (wordData.subtype === 'punctuation') {
+      if (!state.dragging) return; // lockSentence already called for a prior rail
+      if (isRailComplete(rail)) {
+        const lastWord = rail.words[rail.words.length - 1];
+        const lastEl = document.getElementById(`block-${lastWord.id}`);
+        if (lastEl && Math.abs(dragCX - lastEl.getBoundingClientRect().right) < SNAP_DISTANCE) {
+          lockSentence(rail, wordData);
+        }
+      }
+      return; // Skip normal word magnetism for punctuation
+    }
+
     const railEl = document.getElementById(`rail-${rail.id}`);
     if (!railEl) return;
     const railRect = railEl.getBoundingClientRect();
@@ -2015,7 +2044,7 @@ function snapToRail(rail, result) {
     } else {
       // No specific target (first word on empty rail) — use drop position
       const rRect = railElForPos.getBoundingClientRect();
-      wordData.x = Math.max(RAIL_PADDING, parseFloat(el.style.left) - rRect.left);
+      wordData.x = parseFloat(el.style.left) - rRect.left;
     }
   } else {
     wordData.x = RAIL_PADDING;
@@ -2139,7 +2168,7 @@ function shakeKickFromRail(wordData, rail, insertIndex) {
 //  LOCK SENTENCE
 // ═══════════════════════════════════════════════════
 
-function lockSentence(rail, punct) {
+function lockSentence(rail, punctData) {
   if (!state.dragging) return;
   recalcRailScore(rail);
   const punctEl = state.dragging.el;
@@ -2149,21 +2178,20 @@ function lockSentence(rail, punct) {
   rail.isLocked = true;
   const rawWords = rail.words.map(w => w.displayText || w.text);
   if (rawWords.length > 0) rawWords[0] = rawWords[0].charAt(0).toUpperCase() + rawWords[0].slice(1);
-  const sentenceText = rawWords.join(' ') + punct;
+  const punctChar = typeof punctData === 'string' ? punctData : punctData.displayText;
+  const sentenceText = rawWords.join(' ') + punctChar;
   const railEl = document.getElementById(`rail-${rail.id}`);
 
-  // Attach the period to the rail, positioned after the last word
+  // Attach the period to the rail, positioned at the text baseline
   if (railEl && rail.words.length > 0) {
     const lastWord = rail.words[rail.words.length - 1];
     const lastEl = document.getElementById(`block-${lastWord.id}`);
     const lastX = lastWord.x !== undefined ? lastWord.x : 0;
-    const lastW = lastEl ? lastEl.offsetWidth : 0;
-    const railH = railEl.offsetHeight || 72;
-    const punctSize = punctEl.offsetWidth || 32;
     punctEl.classList.remove('dragging', 'dancing');
     punctEl.style.position = 'absolute';
-    punctEl.style.left = `${lastX + lastW + 5}px`;
-    punctEl.style.top  = `${(railH - punctSize) / 2}px`;
+    // block top ≈ 12px, block height ≈ 48px → baseline at 60px; period height = 32px → top = 28px
+    punctEl.style.top = '28px';
+    punctEl.style.left = `${lastX + (lastEl ? lastEl.offsetWidth : 0) + 2}px`;
     punctEl.style.zIndex = '';
     punctEl.style.cursor = 'default';
     railEl.appendChild(punctEl);
