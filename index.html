@@ -1812,7 +1812,7 @@ function commitGroupDrag(dragState) {
 // ═══════════════════════════════════════════════════
 
 function calcRepulsion(x, y, el) {
-  if (!state.dragging || state.dragging.isPunct) return null;
+  if (!state.dragging) return null;
   const { wordData } = state.dragging;
   const elW  = el.offsetWidth || estimateBlockWidth(wordData.displayText || wordData.text);
   const blockH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--block-h')) || 48;
@@ -1888,10 +1888,8 @@ function onDragMove(e) {
   // ── Individual drag mode ──
   let newX = pos.x - offsetX;
   let newY = pos.y - offsetY;
-  if (!state.dragging.isPunct) {
-    const repelled = calcRepulsion(newX, newY, el);
-    if (repelled) { newX = repelled.x; newY = repelled.y; }
-  }
+  const repelled = calcRepulsion(newX, newY, el);
+  if (repelled) { newX = repelled.x; newY = repelled.y; }
   el.style.left = `${newX}px`;
   el.style.top  = `${newY}px`;
 
@@ -1902,8 +1900,7 @@ function onDragMove(e) {
   const cy = newY + (el.offsetHeight / 2);
   dz.classList.toggle('active-target', cx > dr.left && cx < dr.right && cy > dr.top && cy < dr.bottom);
 
-  if (!state.dragging.isPunct) checkMagnetism(newX, newY, el);
-  else checkPunctMagnetism(newX, newY);
+  checkMagnetism(newX, newY, el);
 }
 
 // ═══════════════════════════════════════════════════
@@ -1912,7 +1909,7 @@ function onDragMove(e) {
 
 function checkMagnetism(x, y, el) {
   document.querySelectorAll('.word-block.in-field-attract,.word-block.in-field-repel').forEach(b => b.classList.remove('in-field-attract','in-field-repel'));
-  if (!state.dragging || state.dragging.isPunct) return;
+  if (!state.dragging) return;
   const { wordData } = state.dragging;
   const dragCX = x + (el.offsetWidth / 2);
   const dragCY = y + (el.offsetHeight / 2);
@@ -1969,31 +1966,12 @@ function checkMagnetism(x, y, el) {
   if (dist < SNAP_DISTANCE)  snapToRail(bestRail, bestResult);
 }
 
-function checkPunctMagnetism(x, y) {
-  const el = state.dragging?.el;
-  if (!el) return;
-  const punct = state.dragging.punct;
-  document.querySelectorAll('.word-block.in-field-attract').forEach(b => b.classList.remove('in-field-attract'));
-  if (!['.','!','?'].includes(punct)) return;
-  const dragCX = x + 16, dragCY = y + 16;
-  state.rails.forEach(rail => {
-    if (!isRailComplete(rail) || rail.words.length === 0) return;
-    const last   = rail.words[rail.words.length - 1];
-    const lastEl = document.getElementById(`block-${last.id}`);
-    if (!lastEl) return;
-    const lRect = lastEl.getBoundingClientRect();
-    const dist  = Math.sqrt(Math.pow(dragCX - lRect.right, 2) + Math.pow(dragCY - (lRect.top + lRect.height / 2), 2));
-    if (dist < FIELD_DISTANCE) lastEl.classList.add('in-field-attract');
-    if (dist < SNAP_DISTANCE)  lockSentence(rail, punct);
-  });
-}
-
 // ═══════════════════════════════════════════════════
 //  SNAP TO RAIL
 // ═══════════════════════════════════════════════════
 
 function snapToRail(rail, result) {
-  if (!state.dragging || state.dragging.isPunct) return;
+  if (!state.dragging) return;
   const { el, wordData } = state.dragging;
   state.dragging = null;
   document.querySelectorAll('.in-field-attract,.in-field-repel').forEach(b => b.classList.remove('in-field-attract','in-field-repel'));
@@ -2010,6 +1988,12 @@ function snapToRail(rail, result) {
   const leftOk  = !leftNeighbor  || getConnectionResult(leftNeighbor.subtype,  wordData.subtype).allowed;
   const rightOk = !rightNeighbor || getConnectionResult(wordData.subtype, rightNeighbor.subtype).allowed;
   const isValid = leftOk && rightOk;
+
+  const isReadyToLock = wordData.subtype === 'punctuation' && insertIndex === rail.words.length && isRailComplete(rail);
+  if (isReadyToLock) {
+    lockSentence(rail, wordData.text, el);
+    return;
+  }
 
   rail.words.splice(insertIndex, 0, wordData);
   updateRailAnalysis(rail);
@@ -2172,11 +2156,11 @@ function shakeKickFromRail(wordData, rail, insertIndex) {
 //  LOCK SENTENCE
 // ═══════════════════════════════════════════════════
 
-function lockSentence(rail, punctData) {
-  if (!state.dragging) return;
+function lockSentence(rail, punctData, punctElOverride) {
+  if (!state.dragging && !punctElOverride) return;
   recalcRailScore(rail);
-  const punctEl = state.dragging.el;
-  state.dragging = null;
+  const punctEl = punctElOverride || state.dragging.el;
+  if (state.dragging) state.dragging = null;
   document.querySelectorAll('.in-field-attract,.in-field-repel').forEach(b => b.classList.remove('in-field-attract','in-field-repel'));
   stopJitter(rail.id);
   rail.isLocked = true;
@@ -2196,6 +2180,7 @@ function lockSentence(rail, punctData) {
     punctEl.style.position = 'absolute';
     // block top ≈ 12px, block height ≈ 48px → baseline at 60px; period height = 32px → top = 28px
     punctEl.style.top = `${PERIOD_BASELINE_OFFSET}px`;
+    punctEl.style.transform = 'none';
     punctEl.style.left = `${lastX + (lastEl ? lastEl.offsetWidth : 0) + 2}px`;
     punctEl.style.zIndex = '';
     punctEl.style.cursor = 'default';
@@ -2275,25 +2260,18 @@ function onDragEnd(e) {
     resetInactivityTimer(); return;
   }
 
-  const { el, fromBank, sourceRailId, sourceIndex, wordData, isPunct } = state.dragging;
+  const { el, fromBank, sourceRailId, sourceIndex, wordData } = state.dragging;
   const pos   = getEventPos(e);
   const dRect = dz.getBoundingClientRect();
   const overDiscard = pos.x > dRect.left && pos.x < dRect.right && pos.y > dRect.top && pos.y < dRect.bottom;
 
-  if (overDiscard && !isPunct) {
+  if (overDiscard) {
     el.style.transition = 'all 0.3s ease';
     el.style.transform  = 'scale(0)';
     el.style.opacity    = '0';
     setTimeout(() => el.remove(), 300);
     state.dragging = null; state.dragBlocked = false;
     resetInactivityTimer(); return;
-  }
-
-  if (isPunct) {
-    el.style.transition = 'all 0.25s ease'; el.style.opacity = '0';
-    setTimeout(() => el.remove(), 250);
-    state.dragging = null; state.dragBlocked = false;
-    checkPeriodAvailability(); return;
   }
 
   // Fallback: find what rail the word was dropped on by checking actual Y overlap
@@ -2376,6 +2354,12 @@ function onDragEnd(e) {
     const rightOk = !rightNeighbor || getConnectionResult(wordData.subtype, rightNeighbor.subtype).allowed;
     const isValid = leftOk && rightOk;
 
+    const isReadyToLock = wordData.subtype === 'punctuation' && insertIndex === targetRail.words.length && isRailComplete(targetRail);
+    if (isReadyToLock) {
+      lockSentence(targetRail, wordData.text, el);
+      return;
+    }
+
     targetRail.words.splice(insertIndex, 0, wordData);
     updateRailAnalysis(targetRail); recalcRailScore(targetRail);
     el.style.position = 'absolute'; el.style.zIndex = '10';
@@ -2388,6 +2372,13 @@ function onDragEnd(e) {
     el.addEventListener('touchstart', ev => { if (!targetRail.isLocked) startDragFromRail(ev, wordData, targetRail.id); }, { passive: false });
     // Update capitalization for all words now that order may have changed
     targetRail.words.forEach((w, idx) => applyAutoCapitalize(targetRail, w, idx));
+
+    if (state.tutorialPhase === 'noun' && isNounType(wordData.subtype)) {
+      state.tutorialPhase = 'verb'; state.activeTab = 'verbs';
+      buildBankTabs(); buildBankWords(); setTimeout(wiggleVerbBank, 200); saveState();
+    } else if (state.tutorialPhase === 'verb' && isVerbType(wordData.subtype)) {
+      state.tutorialPhase = null; buildBankTabs(); buildBankWords(); saveState();
+    }
 
     if (!isValid) {
       // Shake then magnetically kick sideways ~1 card-width from the bad neighbor
