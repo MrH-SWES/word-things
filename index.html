@@ -123,7 +123,10 @@
       border-radius: 3px;
       overflow: visible;
       position: relative;
-      display: none; /* replaced by full-width xp-strip below */
+      /* The compact header bar is superseded by the full-width xp-strip-container below
+         the header. Hiding it here keeps the DOM element (referenced by xpFill) available
+         while the visual progress is shown in the strip instead. */
+      display: none;
     }
 
     /* ── XP STRIP (full-width progress bar) ── */
@@ -1049,15 +1052,16 @@ const SCORE_VALUES = {
 };
 
 // ── PHYSICS CONSTANTS ──
-const SNAP_DISTANCE   = 90;   // ~1 card width before snapping (avg block ~80px + gap)
-const FIELD_DISTANCE  = 130;  // attract glow range
-const REPEL_DISTANCE  = 56;
-const JITTER_START    = 2.0;
-const JITTER_DECAY    = 0.87;
-const SPRING_DURATION = 200;
-const FIELD_BASE      = 0.7;
+const SNAP_DISTANCE        = 90;   // ~1 card width before snapping (avg block ~80px + gap)
+const FIELD_DISTANCE       = 130;  // attract glow range
+const REPEL_DISTANCE       = 56;
+const JITTER_START         = 2.0;
+const JITTER_DECAY         = 0.87;
+const SPRING_DURATION      = 200;
+const FIELD_BASE           = 0.7;
 const FIELD_STRENGTH_SCALE = 0.15;
-const FIELD_BLOCKED   = 0.5;
+const FIELD_BLOCKED        = 0.5;
+const SNAP_LINK_TOLERANCE  = 20;   // px — max extra gap for two words to still be considered snapped together
 const EMPTY_RAIL_SCORE = 10;
 const XP_BAR_TRANSITION_MS = 600; // must match .xp-bar-fill transition duration in CSS
 
@@ -1258,8 +1262,6 @@ function updateScoreBadges(rail) {
 
 // Returns array of arrays: each sub-array is a group of consecutive words whose
 // x-positions indicate they are magnetically snapped together (gap ≈ BLOCK_GAP).
-const SNAP_LINK_TOLERANCE = 20; // px tolerance for "snapped" detection
-
 function getSnapClusters(rail) {
   if (rail.words.length === 0) return [];
   // Sort a copy by x position so free-dropped words in arbitrary order are handled
@@ -2431,10 +2433,10 @@ function updateXPBar() {
 
   if (state.level === 2 && lv3 && lv4) {
     // Level 2: scale bar to Level-4 threshold; show hashmarks at Lv3 and Lv4
-    const scaleMax = lv4.xpRequired; // 45 XP
+    const scaleMax = lv4.xpRequired;
     pct = Math.min(state.xp / scaleMax, 1);
 
-    const pct3 = (lv3.xpRequired / scaleMax) * 100; // ≈44.4%
+    const pct3 = (lv3.xpRequired / scaleMax) * 100;
     const pct4 = 100;
 
     const h3 = document.createElement('div');
