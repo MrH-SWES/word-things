@@ -891,7 +891,7 @@ const WORD_BANK = {
     { text: "kids",  subtype: "noun", agreement: "3rd-plural",   singular: "kid",   plural: "kids"   },
     { text: "ball",  subtype: "noun", agreement: "3rd-singular", singular: "ball",  plural: "balls"  },
     { text: "fish",  subtype: "noun", agreement: "3rd-singular", singular: "fish",  plural: "fish", uncountable: true },
-    { text: "sun",   subtype: "noun", agreement: "3rd-singular", singular: "sun",   plural: "suns", uncountable: true },
+    { text: "sun",   subtype: "noun", agreement: "3rd-singular", singular: "sun",   plural: "suns"   },
   ],
   pronouns: [
     { text: "I",    subtype: "pronoun", agreement: "1st-singular" },
@@ -2044,6 +2044,7 @@ function onDragEnd(e) {
     const elW = el.offsetWidth || estimateBlockWidth(wordData.displayText || wordData.text);
     const dropXCenter = dropX + elW / 2;
     const rRect = targetRailEl.getBoundingClientRect();
+    const dropRelX = Math.max(RAIL_PADDING, isNaN(dropX) ? RAIL_PADDING : dropX - rRect.left);
     const blockH2 = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--block-h')) || 48;
     const topOffset = (72 - blockH2) / 2;
 
@@ -2063,7 +2064,7 @@ function onDragEnd(e) {
     // Compute wordData.x: snap to neighbor if within SNAP_DISTANCE, otherwise free drop
     if (targetRail.words.length === 0) {
       // Empty rail — place at drop position
-      wordData.x = Math.max(RAIL_PADDING, isNaN(dropX - rRect.left) ? RAIL_PADDING : dropX - rRect.left);
+      wordData.x = dropRelX;
     } else if (bestDist < SNAP_DISTANCE && nearestWordIdx !== -1) {
       // Close enough to snap — place immediately adjacent to nearest word
       const nearWord = targetRail.words[nearestWordIdx];
@@ -2081,7 +2082,7 @@ function onDragEnd(e) {
       }
     } else {
       // Free drop — sit at dropped position; compute order by x
-      wordData.x = Math.max(RAIL_PADDING, isNaN(dropX - rRect.left) ? RAIL_PADDING : dropX - rRect.left);
+      wordData.x = dropRelX;
       insertIndex = targetRail.words.length;
       targetRail.words.forEach((w, i) => {
         if (wordData.x > (w.x !== undefined ? w.x : RAIL_PADDING)) insertIndex = i + 1;
