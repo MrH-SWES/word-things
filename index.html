@@ -964,14 +964,14 @@ const WORD_BANK = {
 };
 
 const LEVELS = [
-  { level: 1, xpRequired: 0,   unlocks: ["nouns","verbs"],                  unlockLabel: "Nouns & Verbs",                     punctUnlocks: ["."] },
-  { level: 2, xpRequired: 5,   unlocks: ["articles"],                        unlockLabel: "Articles unlocked",                  punctUnlocks: [] },
-  { level: 3, xpRequired: 20,  unlocks: [],                                  unlockLabel: "10 nouns & verbs mastered",          punctUnlocks: [] },
-  { level: 4, xpRequired: 45,  unlocks: ["adjectives","determiners"],        unlockLabel: "Adjectives & Determiners unlocked",  punctUnlocks: [] },
-  { level: 5, xpRequired: 80,  unlocks: [],                                  unlockLabel: "! and ? unlocked",                   punctUnlocks: ["!","?"] },
-  { level: 6, xpRequired: 130, unlocks: ["adverbs"],                         unlockLabel: "Adverbs unlocked",                   punctUnlocks: [] },
-  { level: 7, xpRequired: 200, unlocks: ["prepositions"],                    unlockLabel: "Prepositions unlocked",              punctUnlocks: [] },
-  { level: 8, xpRequired: 300, unlocks: ["conjunctions"],                    unlockLabel: "Conjunctions unlocked",              punctUnlocks: [","] },
+  { level: 1, xpRequired: 0,   unlocks: ["nouns","verbs"],                  unlockLabel: "Nouns & Verbs",                     nextLabel: "Articles",                  punctUnlocks: ["."] },
+  { level: 2, xpRequired: 5,   unlocks: ["articles"],                        unlockLabel: "Articles unlocked",                  nextLabel: "Milestone",                 punctUnlocks: [] },
+  { level: 3, xpRequired: 20,  unlocks: [],                                  unlockLabel: "10 nouns & verbs mastered",          nextLabel: "Adjectives & Determiners",  punctUnlocks: [] },
+  { level: 4, xpRequired: 45,  unlocks: ["adjectives","determiners"],        unlockLabel: "Adjectives & Determiners unlocked",  nextLabel: "! and ?",                   punctUnlocks: [] },
+  { level: 5, xpRequired: 80,  unlocks: [],                                  unlockLabel: "! and ? unlocked",                   nextLabel: "Adverbs",                   punctUnlocks: ["!","?"] },
+  { level: 6, xpRequired: 130, unlocks: ["adverbs"],                         unlockLabel: "Adverbs unlocked",                   nextLabel: "Prepositions",              punctUnlocks: [] },
+  { level: 7, xpRequired: 200, unlocks: ["prepositions"],                    unlockLabel: "Prepositions unlocked",              nextLabel: "Conjunctions",              punctUnlocks: [] },
+  { level: 8, xpRequired: 300, unlocks: ["conjunctions"],                    unlockLabel: "Conjunctions unlocked",              nextLabel: "",                          punctUnlocks: [","] },
 ];
 
 const ALL_PUNCT = [".", "!", "?", ",", ";", ":", '"', "'", "(", ")", "—", "–", "…"];
@@ -995,6 +995,7 @@ const FIELD_BASE      = 0.7;
 const FIELD_STRENGTH_SCALE = 0.15;
 const FIELD_BLOCKED   = 0.5;
 const EMPTY_RAIL_SCORE = 10;
+const XP_BAR_TRANSITION_MS = 600; // must match .xp-bar-fill transition duration in CSS
 
 // ═══════════════════════════════════════════════════
 //  CONNECTION RULES
@@ -2284,7 +2285,7 @@ function updateXPBar() {
   document.getElementById('xpFill').style.width = `${pct * 100}%`;
   document.getElementById('levelLabel').textContent = `Level ${state.level}`;
   if (next) {
-    const nextName = next.unlockLabel.replace(/\s*unlocked\s*$/i, '');
+    const nextName = next.nextLabel || next.unlockLabel;
     document.getElementById('xpLabel').textContent = `🔓 ${nextName} (${next.xpRequired} XP)`;
   } else {
     document.getElementById('xpLabel').textContent = '🏆 MAX';
@@ -2307,8 +2308,8 @@ function checkLevelUp() {
   pendingUnlockAnimation.types = new Set([...state.unlockedTypes].filter(t => !prevTypes.has(t)));
   pendingUnlockAnimation.puncts = new Set([...state.unlockedPunct].filter(p => !prevPunct.has(p)));
 
-  // Wait for the XP bar fill transition (~600ms) before showing the overlay
-  setTimeout(() => showLevelUp(next), 600);
+  // Wait for the XP bar fill transition before showing the overlay
+  setTimeout(() => showLevelUp(next), XP_BAR_TRANSITION_MS);
 }
 
 function showLevelUp(levelDef) {
