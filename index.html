@@ -1392,8 +1392,11 @@ function applyAutoCapitalize(rail, wordData, idx) {
   const span = el.querySelector('.block-text');
   if (!span) return;
   const baseText = wordData.displayText || wordData.text;
-  if (idx === 0 && rail.words.length > 0) {
-    // capitalize first letter if not already "I" (which is always caps)
+  // Find the word physically furthest to the left (lowest x value)
+  const leftmostWord = rail.words.reduce((min, w) =>
+    (w.x !== undefined && (min === null || w.x < min.x)) ? w : min, null);
+  if (leftmostWord && wordData.id === leftmostWord.id) {
+    // capitalize first letter; "I" is already uppercase
     span.textContent = baseText.charAt(0).toUpperCase() + baseText.slice(1);
   } else {
     span.textContent = baseText;
@@ -2045,6 +2048,30 @@ function snapToRail(rail, result) {
   resetInactivityTimer();
 }
 
+function updateArticleAgreement(rail) {
+  const sorted = [...rail.words].sort((a, b) => (a.x || 0) - (b.x || 0));
+  sorted.forEach((w, i) => {
+    const baseText = (w.displayText || w.text).toLowerCase();
+    if (baseText !== 'a' && baseText !== 'an') return;
+    const next = sorted[i + 1];
+    const nextText = next ? (next.displayText || next.text) : '';
+    const startsWithVowel = /^[aeiou]/i.test(nextText);
+    const newForm = (next && startsWithVowel) ? 'an' : 'a';
+    if (newForm !== (w.displayText || '').toLowerCase()) {
+      w.displayText = newForm;
+      const el = document.getElementById(`block-${w.id}`);
+      if (el) {
+        el.classList.add('morphing');
+        setTimeout(() => {
+          const span = getBlockText(el);
+          if (span) span.textContent = newForm;
+          el.classList.remove('morphing');
+        }, 200);
+      }
+    }
+  });
+}
+
 function updateRailAnalysis(rail) {
   rail.hasNoun = rail.words.some(w => isNounType(w.subtype));
   rail.hasVerb = rail.words.some(w => isVerbType(w.subtype));
@@ -2055,6 +2082,7 @@ function updateRailAnalysis(rail) {
   const newAgreement = subjectWord ? subjectWord.agreement : null;
   rail.subjectAgreement = newAgreement;
   if (newAgreement) updateVerbAgreement(rail);
+  updateArticleAgreement(rail);
 }
 
 function ensureEmptyRail() {
