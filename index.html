@@ -1366,16 +1366,15 @@ function layoutRail(rail) {
   const railH = 72;
   const blockH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--block-h')) || 48;
   const topOffset = (railH - blockH) / 2;
-  // If any word lacks a stored x position, run the pack algorithm to assign them
-  if (rail.words.some(w => w.x === undefined)) {
-    let x = RAIL_PADDING;
-    rail.words.forEach(wordData => {
-      wordData.x = x;
-      const el = document.getElementById(`block-${wordData.id}`);
-      const w = el ? (el.offsetWidth || estimateBlockWidth(wordData.displayText || wordData.text)) : estimateBlockWidth(wordData.displayText || wordData.text);
-      x += w + BLOCK_GAP;
-    });
-  }
+  // Solid-body sweep: sort left-to-right then enforce minimum spacing every time
+  rail.words.sort((a, b) => (a.x || 0) - (b.x || 0));
+  let currentMinX = RAIL_PADDING;
+  rail.words.forEach(w => {
+    if (w.x === undefined || w.x < currentMinX) { w.x = currentMinX; }
+    const wEl = document.getElementById(`block-${w.id}`);
+    const wWidth = wEl ? (wEl.offsetWidth || estimateBlockWidth(w.displayText || w.text)) : estimateBlockWidth(w.displayText || w.text);
+    currentMinX = w.x + wWidth + BLOCK_GAP;
+  });
   rail.words.forEach((wordData, idx) => {
     const el = document.getElementById(`block-${wordData.id}`);
     if (!el) return;
@@ -1409,16 +1408,15 @@ function layoutRailAnimated(rail) {
   const blockH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--block-h')) || 48;
   const railH = 72;
   const topOffset = (railH - blockH) / 2;
-  // If any word lacks a stored x position, run the pack algorithm to assign them
-  if (rail.words.some(w => w.x === undefined)) {
-    let x = RAIL_PADDING;
-    rail.words.forEach(wordData => {
-      wordData.x = x;
-      const el = document.getElementById(`block-${wordData.id}`);
-      const w = el ? (el.offsetWidth || estimateBlockWidth(wordData.displayText || wordData.text)) : estimateBlockWidth(wordData.displayText || wordData.text);
-      x += w + BLOCK_GAP;
-    });
-  }
+  // Solid-body sweep: sort left-to-right then enforce minimum spacing every time
+  rail.words.sort((a, b) => (a.x || 0) - (b.x || 0));
+  let currentMinX = RAIL_PADDING;
+  rail.words.forEach(w => {
+    if (w.x === undefined || w.x < currentMinX) { w.x = currentMinX; }
+    const wEl = document.getElementById(`block-${w.id}`);
+    const wWidth = wEl ? (wEl.offsetWidth || estimateBlockWidth(w.displayText || w.text)) : estimateBlockWidth(w.displayText || w.text);
+    currentMinX = w.x + wWidth + BLOCK_GAP;
+  });
   rail.words.forEach((wordData, idx) => {
     const el = document.getElementById(`block-${wordData.id}`);
     if (!el) return;
@@ -1572,6 +1570,12 @@ function isRailComplete(rail) {
   // All words must be part of one linked cluster — no detached words allowed
   const clusters = getSnapClusters(rail);
   if (clusters.length !== 1) return false;
+  const words = clusters[0];
+  for (let i = 0; i < words.length - 1; i++) {
+    if (!getConnectionResult(words[i].subtype, words[i + 1].subtype).allowed) {
+      return false; // Sequence is physically touching but grammatically invalid
+    }
+  }
   const subjectNoun = rail.words.find(w => w.subtype === 'noun');
   if (subjectNoun && subjectNoun.countable && subjectNoun.agreement === '3rd-singular') {
     const nounIdx = rail.words.findIndex(w => w.id === subjectNoun.id);
@@ -2287,7 +2291,7 @@ function onDragEnd(e) {
     const elW = el.offsetWidth || estimateBlockWidth(wordData.displayText || wordData.text);
     const dropXCenter = dropX + elW / 2;
     const rRect = targetRailEl.getBoundingClientRect();
-    const dropRelX = Math.max(RAIL_PADDING, isNaN(dropX) ? RAIL_PADDING : dropX - rRect.left);
+    const dropRelX = isNaN(dropX) ? RAIL_PADDING : dropX - rRect.left;
     const blockH2 = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--block-h')) || 48;
     const topOffset = (72 - blockH2) / 2;
 
@@ -2316,7 +2320,7 @@ function onDragEnd(e) {
       const nearW = nearEl ? (nearEl.offsetWidth || estimateBlockWidth(nearWord.displayText || nearWord.text)) : estimateBlockWidth(nearWord.displayText || nearWord.text);
       if (dropXCenter < (nearX + nearW / 2)) {
         // Insert before nearWord
-        wordData.x = Math.max(RAIL_PADDING, nearX - elW - BLOCK_GAP);
+        wordData.x = nearX - elW - BLOCK_GAP;
         insertIndex = nearestWordIdx;
       } else {
         // Insert after nearWord
