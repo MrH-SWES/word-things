@@ -129,29 +129,32 @@
       display: none;
     }
 
-    /* ── XP STRIP (full-width progress bar) ── */
-    .xp-strip-container {
-      height: 28px;
+    /* ── PTS STRIP (full-width progress bar) ── */
+    .pts-strip-container {
+      height: 36px;
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       position: relative;
       flex-shrink: 0;
-      overflow: hidden;
+      overflow: visible;
+      width: 100%;
     }
-    .xp-strip-track {
+    .pts-strip-track {
       position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 6px;
+      top: 12px; left: 0; right: 0;
+      height: 12px;
+      border-radius: 6px;
       background: rgba(0,0,0,0.07);
       overflow: visible;
     }
-    .xp-strip-fill {
+    .pts-strip-fill {
       height: 100%;
+      border-radius: 6px;
       background: linear-gradient(90deg, var(--verb), #ff6b6b);
       transition: width 0.6s var(--spring);
       width: 0%;
     }
-    .xp-hashmark {
+    .pts-hashmark {
       position: absolute;
       top: 0;
       display: flex;
@@ -160,21 +163,22 @@
       transform: translateX(-50%);
       pointer-events: none;
     }
-    .xp-hash-line {
+    .pts-hash-line {
       width: 2px;
       height: 9px;
       background: rgba(0,0,0,0.32);
       border-radius: 1px;
       flex-shrink: 0;
     }
-    .xp-hash-label {
+    .pts-hash-label {
       font-family: 'Lexend', sans-serif;
       font-size: 0.42rem;
       font-weight: 800;
       white-space: nowrap;
       color: var(--text-gray);
       letter-spacing: 0.3px;
-      margin-top: 2px;
+      position: absolute;
+      top: 16px;
     }
     .xp-bar-fill {
       height: 100%;
@@ -282,21 +286,8 @@
       height: var(--rail-h);
       display: flex;
       align-items: center;
-    }
-
-    .rail-line {
-      position: absolute;
-      left: 0; right: 0;
-      height: 1.5px;
-      background: linear-gradient(90deg,
-        transparent,
-        rgba(0,0,0,0.08) 8%,
-        rgba(0,0,0,0.08) 92%,
-        transparent
-      );
-      top: 50%;
-      transform: translateY(-50%);
-      pointer-events: none;
+      border-top: 2px solid rgba(0,0,0,0.08);
+      border-bottom: 2px solid rgba(0,0,0,0.08);
     }
 
     /* ── WORD BLOCKS ── */
@@ -488,20 +479,10 @@
 
     /* ── PERIOD BEAD DANCE (hyperWiggle) ── */
     @keyframes hyperWiggle {
-      0%,100% { transform: translateY(0) rotate(0deg) scale(1); }
-      8%      { transform: translateY(-9px) rotate(-18deg) scale(1.2); }
-      16%     { transform: translateY(-4px) rotate(16deg) scale(1.12); }
-      24%     { transform: translateY(-12px) rotate(-15deg) scale(1.25); }
-      32%     { transform: translateY(-5px) rotate(14deg) scale(1.1); }
-      40%     { transform: translateY(-11px) rotate(-12deg) scale(1.2); }
-      48%     { transform: translateY(-3px) rotate(13deg) scale(1.08); }
-      56%     { transform: translateY(-9px) rotate(-10deg) scale(1.17); }
-      64%     { transform: translateY(-4px) rotate(10deg) scale(1.1); }
-      72%     { transform: translateY(-8px) rotate(-8deg) scale(1.14); }
-      80%     { transform: translateY(-2px) rotate(8deg) scale(1.06); }
-      90%     { transform: translateY(-6px) rotate(-5deg) scale(1.1); }
+      0%, 100% { transform: translateY(0) scale(1); }
+      50%      { transform: translateY(-12px) scale(1.1); }
     }
-    .dancing { animation: hyperWiggle 0.42s ease-in-out infinite; }
+    .dancing { animation: hyperWiggle 0.65s ease-in-out infinite; }
 
     /* ── SCORE BADGE ── */
     .score-badge {
@@ -905,9 +886,9 @@
   <button class="reset-btn" onclick="hardReset()" title="Hard Reset — wipes all progress" aria-label="Hard reset: erase all progress and return to level 1">↺ Reset</button>
 </header>
 
-<div class="xp-strip-container" id="xpStripContainer">
-  <div class="xp-strip-track" id="xpStripTrack">
-    <div class="xp-strip-fill" id="xpStripFill"></div>
+<div class="pts-strip-container" id="ptsStripContainer">
+  <div class="pts-strip-track" id="ptsStripTrack">
+    <div class="pts-strip-fill" id="ptsStripFill"></div>
   </div>
 </div>
 
@@ -1218,9 +1199,6 @@ function renderRails() {
       railEl.className = 'rail';
       railEl.id = `rail-${rail.id}`;
       railEl.dataset.railId = rail.id;
-      const line = document.createElement('div');
-      line.className = 'rail-line';
-      railEl.appendChild(line);
       container.appendChild(railEl);
     }
     updateScoreBadges(rail);
@@ -2110,9 +2088,9 @@ function shakeKickFromRail(wordData, rail, insertIndex) {
 
 function lockSentence(rail, punct) {
   if (!state.dragging) return;
+  recalcRailScore(rail);
   const punctEl = state.dragging.el;
   state.dragging = null;
-  punctEl.remove();
   document.querySelectorAll('.in-field-attract,.in-field-repel').forEach(b => b.classList.remove('in-field-attract','in-field-repel'));
   stopJitter(rail.id);
   rail.isLocked = true;
@@ -2120,6 +2098,23 @@ function lockSentence(rail, punct) {
   if (rawWords.length > 0) rawWords[0] = rawWords[0].charAt(0).toUpperCase() + rawWords[0].slice(1);
   const sentenceText = rawWords.join(' ') + punct;
   const railEl = document.getElementById(`rail-${rail.id}`);
+
+  // Attach the period to the rail, positioned after the last word
+  if (railEl && rail.words.length > 0) {
+    const lastWord = rail.words[rail.words.length - 1];
+    const lastEl = document.getElementById(`block-${lastWord.id}`);
+    const lastX = lastWord.x !== undefined ? lastWord.x : 0;
+    const lastW = lastEl ? lastEl.offsetWidth : 0;
+    const railH = 72;
+    const punctSize = 32;
+    punctEl.classList.remove('dragging', 'dancing');
+    punctEl.style.position = 'absolute';
+    punctEl.style.left = `${lastX + lastW + 5}px`;
+    punctEl.style.top  = `${(railH - punctSize) / 2}px`;
+    punctEl.style.zIndex = '';
+    punctEl.style.cursor = 'default';
+    railEl.appendChild(punctEl);
+  }
 
   const xpEarned = rail.potentialScore;
 
@@ -2148,7 +2143,7 @@ function lockSentence(rail, punct) {
       setTimeout(() => {
         const xpPos = railEl ? railEl.getBoundingClientRect() : { left: window.innerWidth / 2, top: window.innerHeight / 2 };
         showFloatingXP(xpEarned, xpPos.left + 40, xpPos.top);
-        addXP(xpEarned, { skipLevelCheck: true });
+        addPoints(xpEarned, { skipLevelCheck: true });
 
         // c) Check level-up 1000ms after the XP bar animation finishes
         setTimeout(() => {
@@ -2360,7 +2355,7 @@ function addToVault(text, xp) {
   if (emptyEl) emptyEl.remove();
   const entryEl = document.createElement('div');
   entryEl.className = 'vault-entry new';
-  entryEl.innerHTML = `<div>${text}</div><div class="vault-entry-xp">+${xp} XP</div>`;
+  entryEl.innerHTML = `<div>${text}</div><div class="vault-entry-xp">+${xp} pts</div>`;
   entryEl.addEventListener('click', () => pullFromVault(entry, entryEl));
   vaultEl.insertBefore(entryEl, vaultEl.firstChild);
   document.getElementById('vaultCount').textContent = `${state.vaultSentences.length} sentence${state.vaultSentences.length !== 1 ? 's' : ''}`;
@@ -2398,7 +2393,7 @@ function pullFromVault(entry, entryEl) {
 //  XP & LEVELING
 // ═══════════════════════════════════════════════════
 
-function addXP(amount, { skipLevelCheck = false } = {}) {
+function addPoints(amount, { skipLevelCheck = false } = {}) {
   if (DEV_MODE) return;
   state.xp += amount;
   updateXPBar(); if (!skipLevelCheck) checkLevelUp(); saveState();
@@ -2414,18 +2409,18 @@ function updateXPBar() {
   document.getElementById('levelLabel').textContent = `Level ${state.level}`;
   if (next) {
     const nextName = cur.nextLabel || next.unlockLabel;
-    document.getElementById('xpLabel').textContent = `${nextName} (${next.xpRequired} XP)`;
+    document.getElementById('xpLabel').textContent = `${nextName} (${next.xpRequired} pts)`;
   } else {
     document.getElementById('xpLabel').textContent = '🏆 MAX';
   }
 
   // ── Full-width strip fill + hashmarks ──
-  const stripFill  = document.getElementById('xpStripFill');
-  const stripTrack = document.getElementById('xpStripTrack');
+  const stripFill  = document.getElementById('ptsStripFill');
+  const stripTrack = document.getElementById('ptsStripTrack');
   if (!stripFill || !stripTrack) return;
 
   // Remove old hashmarks
-  stripTrack.querySelectorAll('.xp-hashmark').forEach(h => h.remove());
+  stripTrack.querySelectorAll('.pts-hashmark').forEach(h => h.remove());
 
   let pct;
   const lv3 = LEVELS.find(l => l.level === 3);
@@ -2440,15 +2435,15 @@ function updateXPBar() {
     const pct4 = 100;
 
     const h3 = document.createElement('div');
-    h3.className = 'xp-hashmark';
+    h3.className = 'pts-hashmark';
     h3.style.left = `${pct3}%`;
-    h3.innerHTML = '<div class="xp-hash-line"></div><div class="xp-hash-label">🔓 Adjectives (Lv.3)</div>';
+    h3.innerHTML = '<div class="pts-hash-line"></div><div class="pts-hash-label">🔓 Adjectives (Lv.3)</div>';
     stripTrack.appendChild(h3);
 
     const h4 = document.createElement('div');
-    h4.className = 'xp-hashmark';
+    h4.className = 'pts-hashmark';
     h4.style.left = `${pct4}%`;
-    h4.innerHTML = '<div class="xp-hash-line"></div><div class="xp-hash-label">Lv.4</div>';
+    h4.innerHTML = '<div class="pts-hash-line"></div><div class="pts-hash-label">Lv.4</div>';
     stripTrack.appendChild(h4);
   } else {
     pct = next ? Math.min((state.xp - xpMin) / (xpMax - xpMin), 1) : 1;
@@ -2506,7 +2501,7 @@ function dismissLevelUp() {
 function showFloatingXP(amount, x, y) {
   const el = document.createElement('div');
   el.className = 'floating-xp';
-  el.textContent = `+${amount}`;
+  el.textContent = `+${amount} pts`;
   el.style.left = `${x}px`; el.style.top = `${y}px`;
   document.body.appendChild(el);
   requestAnimationFrame(() => { el.classList.add('animate'); setTimeout(() => el.remove(), 900); });
@@ -2603,7 +2598,7 @@ function init() {
     state.vaultSentences.forEach(entry => {
       const entryEl = document.createElement('div');
       entryEl.className = 'vault-entry';
-      entryEl.innerHTML = `<div>${entry.text}</div><div class="vault-entry-xp">+${entry.xp} XP</div>`;
+      entryEl.innerHTML = `<div>${entry.text}</div><div class="vault-entry-xp">+${entry.xp} pts</div>`;
       entryEl.addEventListener('click', () => pullFromVault(entry, entryEl));
       vaultEl.appendChild(entryEl);
     });
