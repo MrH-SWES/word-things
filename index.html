@@ -446,7 +446,7 @@
     .score-badge {
       position: absolute;
       top: -24px;
-      left: 16px;
+      left: 0;
       background: var(--surface);
       border: 1px solid var(--border-mid);
       border-radius: 20px;
@@ -793,6 +793,27 @@
       to   { opacity: 1; transform: translateY(0) scale(1); }
     }
     .bank-word.new-unlock { animation: blockSlideIn 0.35s var(--spring); }
+
+    /* ── NEON PULSE (sentence lock animation) ── */
+    @keyframes neonPulse {
+      0%,100% { filter: brightness(1);    transform: translate(0,0) scale(1);    }
+      25%,75% { filter: brightness(1.35); transform: translate(0,0) scale(1.05); }
+      50%     { filter: brightness(1);    transform: translate(0,0) scale(1);    }
+    }
+    .neon-pulsing { animation: neonPulse 0.6s ease-in-out; }
+
+    /* ── HAPPY TWIRL (level-up unlock celebration) ── */
+    @keyframes happyTwirl {
+      0%   { transform: rotate(0deg);  }
+      15%  { transform: rotate(10deg); }
+      30%  { transform: rotate(-10deg);}
+      45%  { transform: rotate(8deg);  }
+      60%  { transform: rotate(-8deg); }
+      75%  { transform: rotate(4deg);  }
+      90%  { transform: rotate(-4deg); }
+      100% { transform: rotate(0deg);  }
+    }
+    .happy-twirl { animation: happyTwirl 0.8s ease-in-out; }
   </style>
 </head>
 <body>
@@ -859,6 +880,9 @@
 
 let DEV_MODE = localStorage.getItem('word-things-dev') === 'true';
 
+// Tracks items unlocked at the last level-up for the happy-twirl celebration
+let pendingUnlockAnimation = { types: new Set(), puncts: new Set() };
+
 const WORD_BANK = {
   articles: [
     { text: "a",   subtype: "article" },
@@ -882,16 +906,16 @@ const WORD_BANK = {
     { text: "happy",  subtype: "adjective" },
   ],
   nouns: [
-    { text: "dog",   subtype: "noun", agreement: "3rd-singular", singular: "dog",   plural: "dogs"   },
-    { text: "cat",   subtype: "noun", agreement: "3rd-singular", singular: "cat",   plural: "cats"   },
-    { text: "orca",  subtype: "noun", agreement: "3rd-singular", singular: "orca",  plural: "orcas"  },
-    { text: "bird",  subtype: "noun", agreement: "3rd-singular", singular: "bird",  plural: "birds"  },
+    { text: "dog",   subtype: "noun", agreement: "3rd-singular", singular: "dog",   plural: "dogs",   countable: true  },
+    { text: "cat",   subtype: "noun", agreement: "3rd-singular", singular: "cat",   plural: "cats",   countable: true  },
+    { text: "orca",  subtype: "noun", agreement: "3rd-singular", singular: "orca",  plural: "orcas",  countable: true  },
+    { text: "bird",  subtype: "noun", agreement: "3rd-singular", singular: "bird",  plural: "birds",  countable: true  },
     { text: "water", subtype: "noun", agreement: "3rd-singular", singular: "water", plural: "waters", uncountable: true },
-    { text: "tree",  subtype: "noun", agreement: "3rd-singular", singular: "tree",  plural: "trees"  },
+    { text: "tree",  subtype: "noun", agreement: "3rd-singular", singular: "tree",  plural: "trees",  countable: true  },
     { text: "kids",  subtype: "noun", agreement: "3rd-plural",   singular: "kid",   plural: "kids"   },
-    { text: "ball",  subtype: "noun", agreement: "3rd-singular", singular: "ball",  plural: "balls"  },
+    { text: "ball",  subtype: "noun", agreement: "3rd-singular", singular: "ball",  plural: "balls",  countable: true  },
     { text: "fish",  subtype: "noun", agreement: "3rd-singular", singular: "fish",  plural: "fish", uncountable: true },
-    { text: "sun",   subtype: "noun", agreement: "3rd-singular", singular: "sun",   plural: "suns"   },
+    { text: "sun",   subtype: "noun", agreement: "3rd-singular", singular: "sun",   plural: "suns",   countable: true  },
   ],
   pronouns: [
     { text: "I",    subtype: "pronoun", agreement: "1st-singular" },
@@ -940,14 +964,14 @@ const WORD_BANK = {
 };
 
 const LEVELS = [
-  { level: 1, xpRequired: 0,   unlocks: ["nouns","verbs"],                  unlockLabel: "Nouns & Verbs",                     punctUnlocks: ["."] },
-  { level: 2, xpRequired: 5,   unlocks: [],                                  unlockLabel: "10 basic nouns & verbs unlocked",    punctUnlocks: [] },
-  { level: 3, xpRequired: 20,  unlocks: ["articles"],                        unlockLabel: "Articles unlocked",                  punctUnlocks: [] },
-  { level: 4, xpRequired: 45,  unlocks: ["adjectives","determiners"],        unlockLabel: "Adjectives & Determiners unlocked",  punctUnlocks: [] },
-  { level: 5, xpRequired: 80,  unlocks: [],                                  unlockLabel: "! and ? unlocked",                   punctUnlocks: ["!","?"] },
-  { level: 6, xpRequired: 130, unlocks: ["adverbs"],                         unlockLabel: "Adverbs unlocked",                   punctUnlocks: [] },
-  { level: 7, xpRequired: 200, unlocks: ["prepositions"],                    unlockLabel: "Prepositions unlocked",              punctUnlocks: [] },
-  { level: 8, xpRequired: 300, unlocks: ["conjunctions"],                    unlockLabel: "Conjunctions unlocked",              punctUnlocks: [","] },
+  { level: 1, xpRequired: 0,   unlocks: ["nouns","verbs"],                  unlockLabel: "Nouns & Verbs",                     nextLabel: "Articles",                  punctUnlocks: ["."] },
+  { level: 2, xpRequired: 5,   unlocks: ["articles"],                        unlockLabel: "Articles unlocked",                  nextLabel: "Milestone",                 punctUnlocks: [] },
+  { level: 3, xpRequired: 20,  unlocks: [],                                  unlockLabel: "10 nouns & verbs mastered",          nextLabel: "Adjectives & Determiners",  punctUnlocks: [] },
+  { level: 4, xpRequired: 45,  unlocks: ["adjectives","determiners"],        unlockLabel: "Adjectives & Determiners unlocked",  nextLabel: "! and ?",                   punctUnlocks: [] },
+  { level: 5, xpRequired: 80,  unlocks: [],                                  unlockLabel: "! and ? unlocked",                   nextLabel: "Adverbs",                   punctUnlocks: ["!","?"] },
+  { level: 6, xpRequired: 130, unlocks: ["adverbs"],                         unlockLabel: "Adverbs unlocked",                   nextLabel: "Prepositions",              punctUnlocks: [] },
+  { level: 7, xpRequired: 200, unlocks: ["prepositions"],                    unlockLabel: "Prepositions unlocked",              nextLabel: "Conjunctions",              punctUnlocks: [] },
+  { level: 8, xpRequired: 300, unlocks: ["conjunctions"],                    unlockLabel: "Conjunctions unlocked",              nextLabel: "",                          punctUnlocks: [","] },
 ];
 
 const ALL_PUNCT = [".", "!", "?", ",", ";", ":", '"', "'", "(", ")", "—", "–", "…"];
@@ -971,6 +995,7 @@ const FIELD_BASE      = 0.7;
 const FIELD_STRENGTH_SCALE = 0.15;
 const FIELD_BLOCKED   = 0.5;
 const EMPTY_RAIL_SCORE = 10;
+const XP_BAR_TRANSITION_MS = 600; // must match .xp-bar-fill transition duration in CSS
 
 // ═══════════════════════════════════════════════════
 //  CONNECTION RULES
@@ -1144,9 +1169,23 @@ function updateScoreBadge(rail) {
   if (rail.potentialScore > 0 && !rail.isLocked) {
     badge.textContent = `${rail.potentialScore} pts`;
     badge.classList.add('has-value');
+    if (rail.words.length > 0) {
+      const firstWord = rail.words[0];
+      const lastWord  = rail.words[rail.words.length - 1];
+      const firstX    = firstWord.x !== undefined ? firstWord.x : RAIL_PADDING;
+      const lastEl    = document.getElementById(`block-${lastWord.id}`);
+      const lastW     = lastEl ? (lastEl.offsetWidth || estimateBlockWidth(lastWord.displayText || lastWord.text))
+                                : estimateBlockWidth(lastWord.displayText || lastWord.text);
+      const lastX     = (lastWord.x !== undefined ? lastWord.x : RAIL_PADDING) + lastW;
+      const centerX   = (firstX + lastX) / 2;
+      badge.style.left      = `${centerX}px`;
+      badge.style.transform = 'translateX(-50%)';
+    }
   } else {
     badge.textContent = '';
     badge.classList.remove('has-value');
+    badge.style.left      = '';
+    badge.style.transform = '';
   }
 }
 
@@ -1237,6 +1276,7 @@ function layoutRail(rail) {
     el.style.top  = `${topOffset}px`;
     applyAutoCapitalize(rail, wordData, idx);
   });
+  updateScoreBadge(rail);
 }
 
 function applyAutoCapitalize(rail, wordData, idx) {
@@ -1278,6 +1318,7 @@ function layoutRailAnimated(rail) {
     setTimeout(() => { el.style.transition = ''; }, SPRING_DURATION + 50);
     applyAutoCapitalize(rail, wordData, idx);
   });
+  updateScoreBadge(rail);
 }
 
 // ═══════════════════════════════════════════════════
@@ -1406,8 +1447,21 @@ function updateVerbAgreement(rail) {
 //  PERIOD / PUNCT AVAILABILITY
 // ═══════════════════════════════════════════════════
 
+// A rail is "complete" (ready for terminal punctuation) if it has a noun+verb,
+// AND if the subject noun is a countable singular noun it must be preceded by an article/determiner.
+function isRailComplete(rail) {
+  if (rail.isLocked || !rail.hasNoun || !rail.hasVerb) return false;
+  const subjectNoun = rail.words.find(w => w.subtype === 'noun');
+  if (subjectNoun && subjectNoun.countable && subjectNoun.agreement === '3rd-singular') {
+    const nounIdx = rail.words.findIndex(w => w.id === subjectNoun.id);
+    const hasArticle = rail.words.slice(0, nounIdx).some(w => w.subtype === 'article' || w.subtype === 'determiner');
+    if (!hasArticle) return false;
+  }
+  return true;
+}
+
 function checkPeriodAvailability() {
-  const anyComplete = state.rails.some(r => !r.isLocked && r.hasNoun && r.hasVerb);
+  const anyComplete = state.rails.some(r => isRailComplete(r));
   document.querySelectorAll('.punct-mark[data-punct="."]').forEach(el => {
     el.classList.remove('locked-mark');
     if (anyComplete) el.classList.add('dancing');
@@ -1760,7 +1814,7 @@ function checkPunctMagnetism(x, y) {
   if (!['.','!','?'].includes(punct)) return;
   const dragCX = x + 16, dragCY = y + 16;
   state.rails.forEach(rail => {
-    if (rail.isLocked || !rail.hasNoun || !rail.hasVerb || rail.words.length === 0) return;
+    if (!isRailComplete(rail) || rail.words.length === 0) return;
     const last   = rail.words[rail.words.length - 1];
     const lastEl = document.getElementById(`block-${last.id}`);
     if (!lastEl) return;
@@ -1950,25 +2004,42 @@ function lockSentence(rail, punct) {
   if (rawWords.length > 0) rawWords[0] = rawWords[0].charAt(0).toUpperCase() + rawWords[0].slice(1);
   const sentenceText = rawWords.join(' ') + punct;
   const railEl = document.getElementById(`rail-${rail.id}`);
+
+  // Apply neonPulse animation — clear inline transform first so the CSS animation takes over
   rail.words.forEach(w => {
     const el = document.getElementById(`block-${w.id}`);
-    if (el) { el.classList.remove('snapped','breathing'); el.classList.add('locked'); el.style.transform = 'translate(0,0) scale(1)'; }
+    if (el) {
+      el.style.transform = '';
+      el.classList.remove('snapped', 'breathing');
+      el.classList.add('locked', 'neon-pulsing');
+    }
   });
+
   const flash = document.getElementById('lockFlash');
   flash.classList.add('flash');
   setTimeout(() => flash.classList.remove('flash'), 450);
+
   const xpEarned = rail.potentialScore;
-  const xpPos = railEl ? railEl.getBoundingClientRect() : { left: window.innerWidth/2, top: window.innerHeight/2 };
-  showFloatingXP(xpEarned, xpPos.left + 40, xpPos.top);
-  addXP(xpEarned);
+
+  // Wait for neonPulse (600ms) before awarding XP and transferring to vault
   setTimeout(() => {
-    addToVault(sentenceText, xpEarned);
-    const idx = state.rails.findIndex(r => r.id === rail.id);
-    if (idx !== -1) { state.rails.splice(idx, 1); railEl.remove(); renderRails(); }
-    ensureEmptyRail();
-    checkPeriodAvailability();
-    saveState();
-  }, 750);
+    rail.words.forEach(w => {
+      const el = document.getElementById(`block-${w.id}`);
+      if (el) el.classList.remove('neon-pulsing');
+    });
+    const xpPos = railEl ? railEl.getBoundingClientRect() : { left: window.innerWidth / 2, top: window.innerHeight / 2 };
+    showFloatingXP(xpEarned, xpPos.left + 40, xpPos.top);
+    addXP(xpEarned);
+    setTimeout(() => {
+      addToVault(sentenceText, xpEarned);
+      const idx = state.rails.findIndex(r => r.id === rail.id);
+      if (idx !== -1) { state.rails.splice(idx, 1); railEl.remove(); renderRails(); }
+      ensureEmptyRail();
+      checkPeriodAvailability();
+      saveState();
+    }, 750);
+  }, 620);
+
   checkPeriodAvailability();
 }
 
@@ -2213,16 +2284,32 @@ function updateXPBar() {
   const pct   = next ? Math.min((state.xp - xpMin) / (xpMax - xpMin), 1) : 1;
   document.getElementById('xpFill').style.width = `${pct * 100}%`;
   document.getElementById('levelLabel').textContent = `Level ${state.level}`;
-  document.getElementById('xpLabel').textContent = next ? `${state.xp} / ${xpMax} XP` : `${state.xp} XP`;
+  if (next) {
+    const nextName = next.nextLabel || next.unlockLabel;
+    document.getElementById('xpLabel').textContent = `🔓 ${nextName} (${next.xpRequired} XP)`;
+  } else {
+    document.getElementById('xpLabel').textContent = '🏆 MAX';
+  }
 }
 
 function checkLevelUp() {
   const next = LEVELS.find(l => l.level === state.level + 1);
   if (!next || state.xp < next.xpRequired) return;
+
+  // Capture what is currently unlocked before upgrading
+  const prevTypes = new Set(state.unlockedTypes);
+  const prevPunct = new Set(state.unlockedPunct);
+
   state.level = next.level;
   applyLevelUnlocks(state.level);
   buildBankTabs(); buildBankWords(); buildPunctTray();
-  showLevelUp(next);
+
+  // Record newly unlocked items for the happy-twirl celebration after overlay dismiss
+  pendingUnlockAnimation.types = new Set([...state.unlockedTypes].filter(t => !prevTypes.has(t)));
+  pendingUnlockAnimation.puncts = new Set([...state.unlockedPunct].filter(p => !prevPunct.has(p)));
+
+  // Wait for the XP bar fill transition before showing the overlay
+  setTimeout(() => showLevelUp(next), XP_BAR_TRANSITION_MS);
 }
 
 function showLevelUp(levelDef) {
@@ -2231,7 +2318,22 @@ function showLevelUp(levelDef) {
   document.getElementById('levelUpOverlay').classList.add('show');
 }
 
-function dismissLevelUp() { document.getElementById('levelUpOverlay').classList.remove('show'); }
+function dismissLevelUp() {
+  document.getElementById('levelUpOverlay').classList.remove('show');
+
+  // Apply happy-twirl to newly unlocked bank tabs and punct marks
+  pendingUnlockAnimation.types.forEach(type => {
+    const tab = document.querySelector(`.bank-tab[data-type="${type}"]`);
+    if (tab) { tab.classList.add('happy-twirl'); setTimeout(() => tab.classList.remove('happy-twirl'), 800); }
+  });
+  pendingUnlockAnimation.puncts.forEach(punct => {
+    document.querySelectorAll(`.punct-mark[data-punct="${punct}"]`).forEach(el => {
+      el.classList.add('happy-twirl');
+      setTimeout(() => el.classList.remove('happy-twirl'), 800);
+    });
+  });
+  pendingUnlockAnimation = { types: new Set(), puncts: new Set() };
+}
 
 function showFloatingXP(amount, x, y) {
   const el = document.createElement('div');
