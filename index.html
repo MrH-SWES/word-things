@@ -2105,8 +2105,8 @@ function lockSentence(rail, punct) {
     const lastEl = document.getElementById(`block-${lastWord.id}`);
     const lastX = lastWord.x !== undefined ? lastWord.x : 0;
     const lastW = lastEl ? lastEl.offsetWidth : 0;
-    const railH = 72;
-    const punctSize = 32;
+    const railH = railEl.offsetHeight || 72;
+    const punctSize = punctEl.offsetWidth || 32;
     punctEl.classList.remove('dragging', 'dancing');
     punctEl.style.position = 'absolute';
     punctEl.style.left = `${lastX + lastW + 5}px`;
