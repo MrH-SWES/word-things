@@ -478,7 +478,7 @@
         radial-gradient(circle at 33% 28%, rgba(255,255,255,0.8) 0%, transparent 65%),
         linear-gradient(135deg, #efefef 0%, #d0d0d0 25%, #a8a8a8 50%, #c0c0c0 75%, #e0e0e0 100%);
       box-shadow: inset 1px 1px 2px rgba(255,255,255,0.8), inset -1px -1px 2px rgba(0,0,0,0.2), 0 2px 4px rgba(0,0,0,0.25);
-      filter: none; color: transparent;
+      filter: none; font-size: 0; /* Hides the literal dot text */
     }
 
     .punct-mark.locked-mark {
@@ -1092,17 +1092,13 @@ function getConnectionResult(leftWord, rightWord) {
   const leftType  = leftWord.subtype;
   const rightType = rightWord.subtype;
   if (leftType === 'punctuation' || rightType === 'punctuation') return { allowed: false, strength: 0 };
-  // article → adjective or noun
-  if (leftType === 'article' && rightType === 'adjective') return { allowed: true, strength: 2 };
+  // article → noun (uncountable guard)
   if (leftType === 'article' && isNounType(rightType)) {
     const articleText = (leftWord.displayText || leftWord.text).toLowerCase();
-    if ((articleText === 'a' || articleText === 'an') && rightWord.uncountable) {
-      return { allowed: false, strength: 0 };
-    }
+    if ((articleText === 'a' || articleText === 'an') && rightWord.uncountable) return { allowed: false, strength: 0 };
     return { allowed: true, strength: 2 };
   }
-  if (leftType === 'determiner' && rightType === 'adjective') return { allowed: true, strength: 2 };
-  if (leftType === 'determiner' && isNounType(rightType))     return { allowed: true, strength: 2 };
+  if (leftType === 'determiner' && isNounType(rightType)) return { allowed: true, strength: 2 };
 
   // adjective → adjective (stacking) or noun
   if (leftType === 'adjective' && rightType === 'adjective')  return { allowed: true, strength: 1 };
@@ -1383,21 +1379,29 @@ const RAIL_PADDING = 14;
 // block top ≈ 12px, block height ≈ 48px → baseline = 60px; period height = 32px → 60 - 32 = 28px
 const PERIOD_BASELINE_OFFSET = 28;
 
+function enforceSolidBodyPhysics(rail) {
+  rail.words.sort((a, b) => (a.x !== undefined ? a.x : RAIL_PADDING) - (b.x !== undefined ? b.x : RAIL_PADDING));
+  let currentMinX = RAIL_PADDING;
+  let prevWord = null;
+  rail.words.forEach(w => {
+    let gap = BLOCK_GAP;
+    if (prevWord && !getConnectionResult(prevWord, w).allowed) gap = 48; // Magnetic Repel
+    const minimumAllowedX = currentMinX - BLOCK_GAP + gap;
+    if (w.x === undefined || w.x < minimumAllowedX) w.x = minimumAllowedX;
+    const el = document.getElementById(`block-${w.id}`);
+    const wWidth = el ? (el.offsetWidth || estimateBlockWidth(w.displayText || w.text)) : estimateBlockWidth(w.displayText || w.text);
+    currentMinX = w.x + wWidth + BLOCK_GAP;
+    prevWord = w;
+  });
+}
+
 function layoutRail(rail) {
   const railEl = document.getElementById(`rail-${rail.id}`);
   if (!railEl) return;
   const railH = 72;
   const blockH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--block-h')) || 48;
   const topOffset = (railH - blockH) / 2;
-  // Solid-body sweep: sort left-to-right then enforce minimum spacing every time
-  rail.words.sort((a, b) => (a.x || 0) - (b.x || 0));
-  let currentMinX = RAIL_PADDING;
-  rail.words.forEach(w => {
-    if (w.x === undefined || w.x < currentMinX) { w.x = currentMinX; }
-    const wEl = document.getElementById(`block-${w.id}`);
-    const wWidth = wEl ? (wEl.offsetWidth || estimateBlockWidth(w.displayText || w.text)) : estimateBlockWidth(w.displayText || w.text);
-    currentMinX = w.x + wWidth + BLOCK_GAP;
-  });
+  enforceSolidBodyPhysics(rail);
   rail.words.forEach((wordData, idx) => {
     const el = document.getElementById(`block-${wordData.id}`);
     if (!el) return;
@@ -1431,15 +1435,7 @@ function layoutRailAnimated(rail) {
   const blockH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--block-h')) || 48;
   const railH = 72;
   const topOffset = (railH - blockH) / 2;
-  // Solid-body sweep: sort left-to-right then enforce minimum spacing every time
-  rail.words.sort((a, b) => (a.x || 0) - (b.x || 0));
-  let currentMinX = RAIL_PADDING;
-  rail.words.forEach(w => {
-    if (w.x === undefined || w.x < currentMinX) { w.x = currentMinX; }
-    const wEl = document.getElementById(`block-${w.id}`);
-    const wWidth = wEl ? (wEl.offsetWidth || estimateBlockWidth(w.displayText || w.text)) : estimateBlockWidth(w.displayText || w.text);
-    currentMinX = w.x + wWidth + BLOCK_GAP;
-  });
+  enforceSolidBodyPhysics(rail);
   rail.words.forEach((wordData, idx) => {
     const el = document.getElementById(`block-${wordData.id}`);
     if (!el) return;
@@ -2047,14 +2043,7 @@ function snapToRail(rail, result) {
     wordData.x = RAIL_PADDING;
   }
 
-  // Forward-sweep: enforce solid-body spacing so front-inserted words push the cluster right
-  let currentMinX = RAIL_PADDING;
-  rail.words.forEach(w => {
-    if (w.x < currentMinX) { w.x = currentMinX; }
-    const wEl = document.getElementById(`block-${w.id}`);
-    const wWidth = wEl ? (wEl.offsetWidth || estimateBlockWidth(w.displayText || w.text)) : estimateBlockWidth(w.displayText || w.text);
-    currentMinX = w.x + wWidth + BLOCK_GAP;
-  });
+  enforceSolidBodyPhysics(rail);
 
   const railEl = document.getElementById(`rail-${rail.id}`);
   el.style.position = 'absolute';
