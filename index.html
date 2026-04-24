@@ -1089,9 +1089,10 @@ function isVerbType(t) { return t === 'verb-intransitive' || t === 'verb-transit
 
 // Pure adjacency: is [leftWord → rightWord] valid?
 function getConnectionResult(leftWord, rightWord) {
+  if (!leftWord || !rightWord) return { allowed: false, strength: 0 };
   const leftType  = leftWord.subtype;
   const rightType = rightWord.subtype;
-  if (leftType === 'punctuation' || rightType === 'punctuation') return { allowed: false, strength: 0 };
+
   // article → noun (uncountable guard)
   if (leftType === 'article' && isNounType(rightType)) {
     const articleText = (leftWord.displayText || leftWord.text).toLowerCase();
@@ -1100,6 +1101,9 @@ function getConnectionResult(leftWord, rightWord) {
   }
   if (leftType === 'determiner' && isNounType(rightType)) return { allowed: true, strength: 2 };
 
+  // article or determiner → adjective (e.g. "the big …")
+  if ((leftType === 'article' || leftType === 'determiner') && rightType === 'adjective') return { allowed: true, strength: 2 };
+
   // adjective → adjective (stacking) or noun
   if (leftType === 'adjective' && rightType === 'adjective')  return { allowed: true, strength: 1 };
   if (leftType === 'adjective' && isNounType(rightType))      return { allowed: true, strength: 2 };
@@ -1107,15 +1111,12 @@ function getConnectionResult(leftWord, rightWord) {
   // noun / pronoun → any verb
   if (isNounType(leftType) && isVerbType(rightType))          return { allowed: true, strength: 3 };
 
-  // transitive verb → article/determiner/noun/pronoun (direct object)
-  if (leftType === 'verb-transitive' && (rightType === 'article' || rightType === 'determiner')) return { allowed: true, strength: 2 };
-  if (leftType === 'verb-transitive' && isNounType(rightType))  return { allowed: true, strength: 2 };
+  // transitive verb → article/determiner/noun (direct object)
+  if (leftType === 'verb-transitive' && (rightType === 'article' || rightType === 'determiner' || isNounType(rightType))) return { allowed: true, strength: 2 };
   if (leftType === 'verb-transitive' && rightType === 'adjective') return { allowed: true, strength: 1 };
 
   // linking verb → adjective or noun (predicate adjective / nominative)
-  if (leftType === 'verb-linking' && rightType === 'adjective')   return { allowed: true, strength: 2 };
-  if (leftType === 'verb-linking' && (rightType === 'article' || rightType === 'determiner')) return { allowed: true, strength: 2 };
-  if (leftType === 'verb-linking' && isNounType(rightType))       return { allowed: true, strength: 2 };
+  if (leftType === 'verb-linking' && (rightType === 'adjective' || rightType === 'article' || rightType === 'determiner' || isNounType(rightType))) return { allowed: true, strength: 2 };
 
   // any verb → adverb
   if (isVerbType(leftType) && rightType === 'adverb')             return { allowed: true, strength: 1 };
@@ -2177,11 +2178,7 @@ function lockSentence(rail, punctData, punctElOverride) {
     punctEl.classList.remove('dragging', 'dancing');
     punctEl.style.position = 'absolute';
     // period is a 16px bead; other marks are tall typographic characters
-    if (punctChar === '.') {
-      punctEl.style.top = '44px'; // align bead with text baseline
-    } else {
-      punctEl.style.top = '16px'; // align typographic marks with block text
-    }
+    punctEl.style.top = punctChar === '.' ? '36px' : '16px';
     punctEl.style.transform = 'none';
     punctEl.style.left = `${lastX + (lastEl ? lastEl.offsetWidth : 0) + 2}px`;
     punctEl.style.zIndex = '';
