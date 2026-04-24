@@ -473,12 +473,9 @@
 
     .punct-mark[data-punct="."] {
       width: 16px; height: 16px; padding: 0; border-radius: 50%; margin: 0 8px;
-      -webkit-background-clip: border-box; background-clip: border-box;
-      background:
-        radial-gradient(circle at 33% 28%, rgba(255,255,255,0.8) 0%, transparent 65%),
-        linear-gradient(135deg, #efefef 0%, #d0d0d0 25%, #a8a8a8 50%, #c0c0c0 75%, #e0e0e0 100%);
-      box-shadow: inset 1px 1px 2px rgba(255,255,255,0.8), inset -1px -1px 2px rgba(0,0,0,0.2), 0 2px 4px rgba(0,0,0,0.25);
-      filter: none; font-size: 0; /* Hides the literal dot text */
+      background: linear-gradient(135deg, #f0f0f0 0%, #d4d4d4 35%, #a8a8a8 65%, #e0e0e0 100%);
+      box-shadow: inset 1px 1px 3px rgba(255,255,255,0.9), inset -2px -2px 4px rgba(0,0,0,0.15), 0 3px 6px rgba(0,0,0,0.15);
+      filter: none; font-size: 0;
     }
 
     .punct-mark.locked-mark {
@@ -2175,12 +2172,20 @@ function lockSentence(rail, punctData, punctElOverride) {
     const lastWord = rail.words[rail.words.length - 1];
     const lastEl = document.getElementById(`block-${lastWord.id}`);
     const lastX = lastWord.x !== undefined ? lastWord.x : 0;
+    const lastW = lastEl ? lastEl.offsetWidth : 0;
+
+    // The block's top is set by topOffset = (railH - blockH) / 2
+    // 72 (railH) - 48 (blockH) / 2 = 12px.
+    // To align the 16px bead with the text baseline (which is lower in the block),
+    // we position it near the bottom of the block.
+    // 12px (topOffset) + 48px (blockH) = 60px (bottom of block).
+    // Let's set the bead's top to 42px to sit it nicely on the baseline.
+    const beadTop = punctChar === '.' ? 42 : 16;
+
     punctEl.classList.remove('dragging', 'dancing');
     punctEl.style.position = 'absolute';
-    // period is a 16px bead; other marks are tall typographic characters
-    punctEl.style.top = punctChar === '.' ? '36px' : '16px';
-    punctEl.style.transform = 'none';
-    punctEl.style.left = `${lastX + (lastEl ? lastEl.offsetWidth : 0) + 2}px`;
+    punctEl.style.left = `${lastX + lastW + 5}px`;
+    punctEl.style.top  = `${beadTop}px`;
     punctEl.style.zIndex = '';
     punctEl.style.cursor = 'default';
     railEl.appendChild(punctEl);
