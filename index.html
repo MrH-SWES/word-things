@@ -22,6 +22,7 @@
 
       /* Parts of speech — Math Things. palette reassigned */
       --noun:        #4169E1;  /* Blue   — tens */
+      --pronoun:     #0047AB;
       --verb:        #DC143C;  /* Red    — ones */
       --adjective:   #64D2FF;  /* Ice    — thousandths */
       --adverb:      #4CBB17;  /* Green  — thousands */
@@ -347,7 +348,8 @@
     .word-block.locked  { cursor: default; }
 
     /* Block colors */
-    .type-noun, .type-pronoun   { background: var(--noun); }
+    .type-noun                  { background: var(--noun); }
+    .type-pronoun               { background: var(--pronoun); }
     .type-verb                  { background: var(--verb); }
     .type-verb-linking          { background: #b01030; }
     .type-verb-transitive       { background: var(--verb); }
@@ -672,8 +674,8 @@
     .bank-tab.locked-tab { opacity: 0.3; cursor: not-allowed; }
 
     /* Tab underline colors */
-    .bank-tab[data-type="nouns"]::after,
-    .bank-tab[data-type="pronouns"]::after    { background: var(--noun); }
+    .bank-tab[data-type="nouns"]::after       { background: var(--noun); }
+    .bank-tab[data-type="pronouns"]::after    { background: var(--pronoun); }
     .bank-tab[data-type="verbs"]::after       { background: var(--verb); }
     .bank-tab[data-type="adjectives"]::after  { background: var(--adjective); }
     .bank-tab[data-type="adverbs"]::after     { background: var(--adverb); }
@@ -1324,7 +1326,8 @@ function recalcRailScore(rail) {
 // ═══════════════════════════════════════════════════
 
 function getTypeClass(subtype) {
-  if (subtype === 'pronoun' || subtype === 'noun') return 'type-noun';
+  if (subtype === 'noun') return 'type-noun';
+  if (subtype === 'pronoun') return 'type-pronoun';
   if (subtype === 'verb-intransitive' || subtype === 'verb-transitive') return 'type-verb';
   if (subtype === 'verb-linking') return 'type-verb-linking';
   return `type-${subtype}`;
