@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Word Things.</title>
   <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;600;800;900&display=swap" rel="stylesheet"/>
   <style>
@@ -336,6 +336,14 @@
     }
 
     .word-block:active { cursor: grabbing; }
+    .word-block:focus-visible,
+    .bank-word:focus-visible,
+    .hear-word:focus-visible,
+    .punct-mark:focus-visible,
+    .vault-entry:focus-visible {
+      outline: 3px solid rgba(0,122,255,0.55);
+      outline-offset: 3px;
+    }
 
     .word-block.dragging {
       z-index: 1000;
@@ -357,6 +365,7 @@
     .type-determiner            { background: var(--determiner); color: #1D1D1F; }
     .type-preposition           { background: var(--preposition); }
     .type-conjunction           { background: var(--conjunction); }
+    .type-legacy-unknown        { background: var(--text-gray); }
 
     /* Field states */
     .word-block.in-field-attract {
@@ -468,7 +477,7 @@
       -webkit-text-fill-color: transparent; color: transparent;
       filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
       cursor: grab; transition: opacity 0.3s ease, transform 0.2s var(--spring);
-      line-height: 1; padding: 0 4px;
+      line-height: 1; padding: 0 4px; border: 0; min-width: 44px; min-height: 44px;
     }
 
     .punct-mark[data-punct="."] {
@@ -592,6 +601,9 @@
       line-height: 1.5;
       cursor: pointer;
       transition: all 0.2s ease;
+      width: 100%;
+      text-align: left;
+      font-family: 'Lexend', sans-serif;
     }
     .vault-entry:hover {
       border-color: var(--border-mid);
@@ -707,6 +719,7 @@
     .bank-words::-webkit-scrollbar { display: none; }
 
     .bank-word {
+      border: 0;
       padding: 7px 12px;
       border-radius: 8px;
       font-family: 'Lexend', sans-serif;
@@ -720,6 +733,7 @@
       letter-spacing: -0.02em;
       user-select: none;
       touch-action: none;
+      min-height: 44px;
     }
     .bank-word:hover {
       transform: translateY(-2px) scale(1.04);
@@ -727,6 +741,83 @@
     }
     .bank-word:active { transform: scale(0.95); cursor: grabbing; }
     .bank-word.light-text { color: #1D1D1F; }
+
+    .bank-word-wrap {
+      display: inline-flex;
+      align-items: stretch;
+      gap: 3px;
+      min-height: 44px;
+    }
+    .bank-word.helper-word { position: relative; }
+    .bank-word.helper-word::after {
+      content: 'helper';
+      position: absolute;
+      right: 4px;
+      bottom: 1px;
+      font-size: 0.34rem;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+      opacity: 0.7;
+    }
+    .hear-word {
+      width: 44px;
+      min-width: 44px;
+      border: 1px solid var(--border-mid);
+      border-radius: 8px;
+      background: var(--surface2);
+      color: var(--text-gray);
+      font: 700 0.72rem 'Lexend', sans-serif;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .hear-word:hover { background: var(--surface); color: var(--accent); }
+
+    .profile-control {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-gray);
+      font-size: 0.52rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+    .profile-control select {
+      min-height: 36px;
+      max-width: 150px;
+      border: 1px solid var(--border-mid);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text-main);
+      font: 600 0.62rem 'Lexend', sans-serif;
+      padding: 0 8px;
+    }
+    .sentence-status {
+      position: absolute;
+      left: 16px;
+      bottom: 76px;
+      max-width: min(520px, calc(100% - 90px));
+      min-height: 28px;
+      padding: 6px 10px;
+      border-radius: 9px;
+      background: rgba(255,255,255,0.9);
+      color: var(--text-gray);
+      box-shadow: var(--shadow-soft);
+      font-size: 0.58rem;
+      font-weight: 600;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      pointer-events: none;
+    }
+    .sentence-status.show { opacity: 1; }
+    .vault-entry-row { display: flex; align-items: center; gap: 6px; }
+    .vault-entry-text { flex: 1; }
+    .vault-hear {
+      width: 36px; height: 36px; flex: 0 0 36px;
+      border: 1px solid var(--border-mid); border-radius: 50%;
+      background: var(--surface); color: var(--text-gray); cursor: pointer;
+    }
 
     /* ── DISCARD ZONE ── */
     .discard-zone {
@@ -912,6 +1003,10 @@
       <div class="xp-bar-fill" id="xpFill" style="width: 0%"></div>
     </div>
   </div>
+  <label class="profile-control" title="Choose which written patterns may appear">
+    Reading
+    <select id="readingProfile" aria-label="Reading profile"></select>
+  </label>
   <div id="devBadge" class="dev-badge" onclick="toggleDevMode()" title="Toggle Dev Mode">Dev</div>
   <button class="reset-btn" onclick="hardReset()" title="Hard Reset — wipes all progress" aria-label="Hard reset: erase all progress and return to level 1">↺ Reset</button>
 </header>
@@ -925,6 +1020,7 @@
 <div class="main-area">
   <div class="canvas-area" id="canvasArea">
     <div class="rails-container" id="railsContainer"></div>
+    <div class="sentence-status" id="sentenceStatus" role="status" aria-live="polite"></div>
     <div class="discard-zone" id="discardZone">✕</div>
     <div class="punct-tray" id="punctTray">
       <span class="punct-tray-label">Punct</span>
@@ -951,6 +1047,7 @@
   Word Things<span class="footer-bead"></span>&nbsp;|&nbsp;Language, in your hands<span class="footer-bead"></span>
 </footer>
 
+<script src="word-things-core.js"></script>
 <script>
 // ═══════════════════════════════════════════════════
 //  CONFIG
@@ -958,109 +1055,18 @@
 
 let DEV_MODE = localStorage.getItem('word-things-dev') === 'true';
 
+const {
+  WORD_BANK, READING_PROFILES, LEVELS, SCORE_VALUES,
+  isNounType, isVerbType, getConnectionResult,
+  isSurfaceAllowed, isHelperSurface, getVisibleWords,
+  cloneToken, validateSentenceTokens, requiredVerbForm, scoreSentence,
+  serializeToken, restoreToken, migrateLegacyText
+} = WordThingsCore;
+
 // Tracks items unlocked at the last level-up for the happy-twirl celebration
 let pendingUnlockAnimation = { types: new Set(), puncts: new Set() };
 
-const WORD_BANK = {
-  articles: [
-    { text: "a",   subtype: "article" },
-    { text: "an",  subtype: "article" },
-    { text: "the", subtype: "article" },
-  ],
-  determiners: [
-    { text: "my",    subtype: "determiner" },
-    { text: "her",   subtype: "determiner" },
-    { text: "his",   subtype: "determiner" },
-    { text: "their", subtype: "determiner" },
-    { text: "this",  subtype: "determiner" },
-    { text: "every", subtype: "determiner" },
-  ],
-  adjectives: [
-    { text: "big",    subtype: "adjective" },
-    { text: "fast",   subtype: "adjective" },
-    { text: "small",  subtype: "adjective" },
-    { text: "quiet",  subtype: "adjective" },
-    { text: "bright", subtype: "adjective" },
-    { text: "happy",  subtype: "adjective" },
-  ],
-  nouns: [
-    { text: "dog",   subtype: "noun", agreement: "3rd-singular", singular: "dog",   plural: "dogs",   countable: true  },
-    { text: "cat",   subtype: "noun", agreement: "3rd-singular", singular: "cat",   plural: "cats",   countable: true  },
-    { text: "orca",  subtype: "noun", agreement: "3rd-singular", singular: "orca",  plural: "orcas",  countable: true  },
-    { text: "bird",  subtype: "noun", agreement: "3rd-singular", singular: "bird",  plural: "birds",  countable: true  },
-    { text: "water", subtype: "noun", agreement: "3rd-singular", singular: "water", plural: "waters", uncountable: true },
-    { text: "tree",  subtype: "noun", agreement: "3rd-singular", singular: "tree",  plural: "trees",  countable: true  },
-    { text: "kids",  subtype: "noun", agreement: "3rd-plural",   singular: "kid",   plural: "kids"   },
-    { text: "ball",  subtype: "noun", agreement: "3rd-singular", singular: "ball",  plural: "balls",  countable: true  },
-    { text: "fish",  subtype: "noun", agreement: "3rd-singular", singular: "fish",  plural: "fish", uncountable: true },
-    { text: "sun",   subtype: "noun", agreement: "3rd-singular", singular: "sun",   plural: "suns",   countable: true  },
-  ],
-  pronouns: [
-    { text: "I",    subtype: "pronoun", agreement: "1st-singular" },
-    { text: "me",   subtype: "pronoun", agreement: "1st-singular" },
-    { text: "we",   subtype: "pronoun", agreement: "1st-plural" },
-    { text: "you",  subtype: "pronoun", agreement: "2nd" },
-    { text: "he",   subtype: "pronoun", agreement: "3rd-singular" },
-    { text: "she",  subtype: "pronoun", agreement: "3rd-singular" },
-    { text: "it",   subtype: "pronoun", agreement: "3rd-singular" },
-    { text: "they", subtype: "pronoun", agreement: "3rd-plural" },
-  ],
-  verbs: [
-    { text: "run",   subtype: "verb-intransitive", forms: { "1st-singular":"run",  "3rd-singular":"runs",  "3rd-plural":"run",  "1st-plural":"run",  "2nd":"run",  "default":"run"  } },
-    { text: "swim",  subtype: "verb-intransitive", forms: { "1st-singular":"swim", "3rd-singular":"swims", "3rd-plural":"swim", "1st-plural":"swim", "2nd":"swim", "default":"swim" } },
-    { text: "jump",  subtype: "verb-intransitive", forms: { "1st-singular":"jump", "3rd-singular":"jumps", "3rd-plural":"jump", "1st-plural":"jump", "2nd":"jump", "default":"jump" } },
-    { text: "sleep", subtype: "verb-intransitive", forms: { "1st-singular":"sleep","3rd-singular":"sleeps","3rd-plural":"sleep","1st-plural":"sleep","2nd":"sleep","default":"sleep"} },
-    { text: "play",  subtype: "verb-intransitive", forms: { "1st-singular":"play", "3rd-singular":"plays", "3rd-plural":"play", "1st-plural":"play", "2nd":"play", "default":"play" } },
-    { text: "kick",  subtype: "verb-transitive",   forms: { "1st-singular":"kick", "3rd-singular":"kicks", "3rd-plural":"kick", "1st-plural":"kick", "2nd":"kick", "default":"kick" } },
-    { text: "eat",   subtype: "verb-transitive",   forms: { "1st-singular":"eat",  "3rd-singular":"eats",  "3rd-plural":"eat",  "1st-plural":"eat",  "2nd":"eat",  "default":"eat"  } },
-    { text: "see",   subtype: "verb-transitive",   forms: { "1st-singular":"see",  "3rd-singular":"sees",  "3rd-plural":"see",  "1st-plural":"see",  "2nd":"see",  "default":"see"  } },
-    { text: "chase", subtype: "verb-transitive",   forms: { "1st-singular":"chase","3rd-singular":"chases","3rd-plural":"chase","1st-plural":"chase","2nd":"chase","default":"chase"} },
-    { text: "is",    subtype: "verb-linking",      forms: { "1st-singular":"am",   "3rd-singular":"is",    "3rd-plural":"are",  "1st-plural":"are",  "2nd":"are",  "default":"is"   } },
-    { text: "feels", subtype: "verb-linking",      forms: { "1st-singular":"feel", "3rd-singular":"feels", "3rd-plural":"feel", "1st-plural":"feel", "2nd":"feel", "default":"feels"} },
-  ],
-  adverbs: [
-    { text: "quickly",  subtype: "adverb" },
-    { text: "slowly",   subtype: "adverb" },
-    { text: "quietly",  subtype: "adverb" },
-    { text: "happily",  subtype: "adverb" },
-    { text: "always",   subtype: "adverb" },
-    { text: "never",    subtype: "adverb" },
-  ],
-  prepositions: [
-    { text: "in",   subtype: "preposition" },
-    { text: "on",   subtype: "preposition" },
-    { text: "by",   subtype: "preposition" },
-    { text: "near", subtype: "preposition" },
-    { text: "over", subtype: "preposition" },
-  ],
-  conjunctions: [
-    { text: "and", subtype: "conjunction" },
-    { text: "but", subtype: "conjunction" },
-    { text: "so",  subtype: "conjunction" },
-    { text: "or",  subtype: "conjunction" },
-  ],
-};
-
-const LEVELS = [
-  { level: 1, xpRequired: 0,   unlocks: ["nouns","verbs"],                  unlockLabel: "Nouns & Verbs",                     nextLabel: "Articles",                  punctUnlocks: ["."] },
-  { level: 2, xpRequired: 5,   unlocks: ["articles"],                        unlockLabel: "Articles unlocked",                  nextLabel: "Milestone",                 punctUnlocks: [] },
-  { level: 3, xpRequired: 20,  unlocks: ["adjectives"],                        unlockLabel: "10 nouns & verbs mastered",          nextLabel: "Adjectives",                punctUnlocks: [] },
-  { level: 4, xpRequired: 45,  unlocks: ["determiners"],                       unlockLabel: "Determiners unlocked",               nextLabel: "Determiners",               punctUnlocks: [] },
-  { level: 5, xpRequired: 80,  unlocks: [],                                  unlockLabel: "! and ? unlocked",                   nextLabel: "Adverbs",                   punctUnlocks: ["!","?"] },
-  { level: 6, xpRequired: 130, unlocks: ["adverbs"],                         unlockLabel: "Adverbs unlocked",                   nextLabel: "Prepositions",              punctUnlocks: [] },
-  { level: 7, xpRequired: 200, unlocks: ["prepositions"],                    unlockLabel: "Prepositions unlocked",              nextLabel: "Conjunctions",              punctUnlocks: [] },
-  { level: 8, xpRequired: 300, unlocks: ["conjunctions"],                    unlockLabel: "Conjunctions unlocked",              nextLabel: "",                          punctUnlocks: [","] },
-];
-
 const ALL_PUNCT = [".", "!", "?", ",", ";", ":", '"', "'", "(", ")", "—", "–", "…"];
-
-const SCORE_VALUES = {
-  "pronoun": 1, "noun": 4,
-  "verb-intransitive": 1, "verb-transitive": 5, "verb-linking": 3,
-  "article": 2, "determiner": 4,
-  "adjective": 3, "adverb": 3,
-  "preposition": 3, "conjunction": 5,
-};
 
 // ── PHYSICS CONSTANTS ──
 const SNAP_DISTANCE        = 90;   // ~1 card width before snapping (avg block ~80px + gap)
@@ -1076,54 +1082,6 @@ const FIELD_BLOCKED        = 0.5;
 const SNAP_LINK_TOLERANCE  = 20;   // px — max extra gap for two words to still be considered snapped together
 const EMPTY_RAIL_SCORE = 10;
 const XP_BAR_TRANSITION_MS = 600; // must match .xp-bar-fill transition duration in CSS
-
-// ═══════════════════════════════════════════════════
-//  CONNECTION RULES
-// ═══════════════════════════════════════════════════
-
-function isNounType(t) { return t === 'noun' || t === 'pronoun'; }
-function isVerbType(t) { return t === 'verb-intransitive' || t === 'verb-transitive' || t === 'verb-linking'; }
-
-// Pure adjacency: is [leftWord → rightWord] valid?
-function getConnectionResult(leftWord, rightWord) {
-  if (!leftWord || !rightWord) return { allowed: false, strength: 0 };
-  const leftType  = leftWord.subtype;
-  const rightType = rightWord.subtype;
-
-  // article → noun (uncountable guard)
-  if (leftType === 'article' && isNounType(rightType)) {
-    const articleText = (leftWord.displayText || leftWord.text).toLowerCase();
-    if ((articleText === 'a' || articleText === 'an') && rightWord.uncountable) return { allowed: false, strength: 0 };
-    return { allowed: true, strength: 2 };
-  }
-  if (leftType === 'determiner' && isNounType(rightType)) return { allowed: true, strength: 2 };
-
-  // article or determiner → adjective (e.g. "the big …")
-  if ((leftType === 'article' || leftType === 'determiner') && rightType === 'adjective') return { allowed: true, strength: 2 };
-
-  // adjective → adjective (stacking) or noun
-  if (leftType === 'adjective' && rightType === 'adjective')  return { allowed: true, strength: 1 };
-  if (leftType === 'adjective' && isNounType(rightType))      return { allowed: true, strength: 2 };
-
-  // noun / pronoun → any verb
-  if (isNounType(leftType) && isVerbType(rightType))          return { allowed: true, strength: 3 };
-
-  // transitive verb → article/determiner/noun (direct object)
-  if (leftType === 'verb-transitive' && (rightType === 'article' || rightType === 'determiner' || isNounType(rightType))) return { allowed: true, strength: 2 };
-  if (leftType === 'verb-transitive' && rightType === 'adjective') return { allowed: true, strength: 1 };
-
-  // linking verb → adjective or noun (predicate adjective / nominative)
-  if (leftType === 'verb-linking' && (rightType === 'adjective' || rightType === 'article' || rightType === 'determiner' || isNounType(rightType))) return { allowed: true, strength: 2 };
-
-  // any verb → adverb
-  if (isVerbType(leftType) && rightType === 'adverb')             return { allowed: true, strength: 1 };
-
-  // adverb → verb (e.g. "quickly runs" — pre-verb adverb)
-  if (leftType === 'adverb' && isVerbType(rightType))             return { allowed: true, strength: 1 };
-
-  // hard block everything else
-  return { allowed: false, strength: 0 };
-}
 
 function canConnect(draggedWord, targetWord, side) {
   const leftWord  = side === 'right' ? draggedWord : targetWord;
@@ -1146,10 +1104,21 @@ let state = {
   dragBlocked: false,
   physicsLoops: {},
   activeTab: 'nouns',
+  readingProfile: 'cvc-supported',
   tutorialPhase: null, // null | 'noun' | 'verb'
   idCounter: 0,
   inactivityTimer: null,
 };
+let sentenceStatusTimer = null;
+
+function showSentenceStatus(message) {
+  const status = document.getElementById('sentenceStatus');
+  if (!status) return;
+  status.textContent = message;
+  status.classList.add('show');
+  clearTimeout(sentenceStatusTimer);
+  sentenceStatusTimer = setTimeout(() => status.classList.remove('show'), 4200);
+}
 
 // ── PERSISTENCE ──
 function saveState() {
@@ -1160,6 +1129,7 @@ function saveState() {
       unlockedPunct: [...state.unlockedPunct],
       vaultSentences: state.vaultSentences,
       tutorialPhase: state.tutorialPhase,
+      readingProfile: state.readingProfile,
     }));
   } catch(e) {}
 }
@@ -1182,11 +1152,15 @@ function loadState() {
       state.unlockedPunct = new Set(save.unlockedPunct || ["."]);
       state.vaultSentences = save.vaultSentences || [];
       state.tutorialPhase = save.tutorialPhase ?? null;
+      state.readingProfile = READING_PROFILES[save.readingProfile] ? save.readingProfile : 'cvc-supported';
+      // Re-derive declared unlocks so older saves gain intentionally placed tools
+      // such as pronouns without losing any existing progress.
+      applyLevelUnlocks(state.level);
 
       const shouldRunTutorial = state.level === 1 && state.xp === 0 && state.vaultSentences.length === 0;
       if (shouldRunTutorial) {
         state.tutorialPhase = state.tutorialPhase || 'noun';
-        state.unlockedTypes = new Set(["nouns", "verbs"]);
+        state.unlockedTypes = new Set(["nouns", "pronouns", "verbs"]);
         state.unlockedPunct = new Set(["."]);
       }
     } else {
@@ -1251,30 +1225,23 @@ function updateScoreBadges(rail) {
   railEl.querySelectorAll('.score-badge').forEach(b => b.remove());
   if (rail.isLocked) return;
 
-  const clusters = getSnapClusters(rail);
-  clusters.forEach(cluster => {
-    if (cluster.length < 2) return; // single word = 0 pts, no badge
-    const hasN = cluster.some(w => isNounType(w.subtype));
-    const hasV = cluster.some(w => isVerbType(w.subtype));
-    let score = cluster.reduce((s, w) => s + (SCORE_VALUES[w.subtype] || 2), 0);
-    if (hasN && hasV) score += 3;
-    if (score === 0) return;
-
-    const badge = document.createElement('div');
-    badge.className = 'score-badge has-value';
-    badge.textContent = `${score} pts`;
-
-    const firstX  = cluster[0].x !== undefined ? cluster[0].x : RAIL_PADDING;
-    const lastWord = cluster[cluster.length - 1];
-    const lastEl   = document.getElementById(`block-${lastWord.id}`);
-    const lastW    = lastEl ? (lastEl.offsetWidth || estimateBlockWidth(lastWord.displayText || lastWord.text))
-                             : estimateBlockWidth(lastWord.displayText || lastWord.text);
-    const lastX    = (lastWord.x !== undefined ? lastWord.x : RAIL_PADDING) + lastW;
-    const centerX  = (firstX + lastX) / 2;
-    badge.style.left      = `${centerX}px`;
-    badge.style.transform = 'translateX(-50%)';
-    railEl.appendChild(badge);
-  });
+  const analysis = getRailStructure(rail);
+  if (!analysis.ok) return;
+  const words = analysis.tokens;
+  const score = scoreSentence(words, state.readingProfile);
+  if (!score) return;
+  const badge = document.createElement('div');
+  badge.className = 'score-badge has-value';
+  badge.textContent = `${score} pts`;
+  const firstX = words[0].x !== undefined ? words[0].x : RAIL_PADDING;
+  const lastWord = words[words.length - 1];
+  const lastEl = document.getElementById(`block-${lastWord.id}`);
+  const lastW = lastEl ? (lastEl.offsetWidth || estimateBlockWidth(lastWord.displayText || lastWord.text))
+    : estimateBlockWidth(lastWord.displayText || lastWord.text);
+  const lastX = (lastWord.x !== undefined ? lastWord.x : RAIL_PADDING) + lastW;
+  badge.style.left = `${(firstX + lastX) / 2}px`;
+  badge.style.transform = 'translateX(-50%)';
+  railEl.appendChild(badge);
 }
 
 // Returns array of arrays: each sub-array is a group of consecutive words whose
@@ -1305,18 +1272,23 @@ function getSnapClusters(rail) {
 }
 
 function recalcRailScore(rail) {
-  const clusters = getSnapClusters(rail);
-  let total = 0;
-  clusters.forEach(cluster => {
-    if (cluster.length < 2) return; // single unlinked word = 0 pts
-    const hasN = cluster.some(w => isNounType(w.subtype));
-    const hasV = cluster.some(w => isVerbType(w.subtype));
-    let score = cluster.reduce((s, w) => s + (SCORE_VALUES[w.subtype] || 2), 0);
-    if (hasN && hasV) score += 3;
-    total += score;
-  });
-  rail.potentialScore = total;
+  const analysis = getRailStructure(rail);
+  rail.potentialScore = analysis.ok ? scoreSentence(analysis.tokens, state.readingProfile) : 0;
   updateScoreBadges(rail);
+}
+
+function getRailStructure(rail) {
+  if (!rail || rail.isLocked) return { ok: false, code: 'locked' };
+  const clusters = getSnapClusters(rail);
+  if (clusters.length !== 1) return { ok: false, code: 'detached', message: 'Bring every sentence piece into one connected group.' };
+  const tokens = clusters[0];
+  for (let i = 0; i < tokens.length - 1; i++) {
+    if (!getConnectionResult(tokens[i], tokens[i + 1]).allowed) {
+      return { ok: false, code: 'local-resistance', message: 'These neighboring pieces resist this connection.', tokens };
+    }
+  }
+  const analysis = validateSentenceTokens(tokens, state.readingProfile);
+  return { ...analysis, tokens };
 }
 
 // ═══════════════════════════════════════════════════
@@ -1342,17 +1314,53 @@ function createWordBlockEl(wordData, railId) {
   el.dataset.wordId = wordData.id;
   el.dataset.railId = railId;
   el.dataset.subtype = wordData.subtype;
+  el.setAttribute('role', 'button');
+  el.setAttribute('tabindex', '0');
+  el.setAttribute('aria-label', `${wordData.displayText || wordData.text}, sentence tile. Press Delete to remove.`);
   el.style.position = 'relative';
   const textSpan = document.createElement('span');
   textSpan.className = 'block-text';
   textSpan.textContent = wordData.displayText || wordData.text;
   el.appendChild(textSpan);
 
-  // Add plural toggle for nouns that have singular/plural forms
+  addPluralToggle(el, wordData, railId);
+  bindRailDragEvents(el, wordData);
+  return el;
+}
+
+function bindRailDragEvents(el, wordData) {
+  if (el.dataset.railEventsBound === 'true') return;
+  el.dataset.railEventsBound = 'true';
+  el.setAttribute('role', 'button');
+  el.setAttribute('tabindex', '0');
+  el.setAttribute('aria-label', `${wordData.displayText || wordData.text}, sentence tile. Press Delete to remove.`);
+  el.addEventListener('mousedown', event => {
+    const railId = Number(el.dataset.railId);
+    const rail = getRailById(railId);
+    if (rail && !rail.isLocked) startDragFromRail(event, wordData, railId);
+  });
+  el.addEventListener('touchstart', event => {
+    const railId = Number(el.dataset.railId);
+    const rail = getRailById(railId);
+    if (rail && !rail.isLocked) startDragFromRail(event, wordData, railId);
+  }, { passive: false });
+  el.addEventListener('keydown', event => {
+    if (event.key !== 'Delete' && event.key !== 'Backspace') return;
+    event.preventDefault();
+    removeWordFromRail(wordData, Number(el.dataset.railId));
+  });
+}
+
+function addPluralToggle(el, wordData, railId) {
+  const existing = el.querySelector('.plural-toggle');
+  if (existing) existing.remove();
+  // A transformation control only appears when its target surface is permitted.
   if (wordData.subtype === 'noun' && wordData.singular && wordData.plural && !wordData.uncountable) {
+    const isPlural = wordData.agreement === '3rd-plural';
+    const targetText = isPlural ? wordData.singular : wordData.plural;
+    if (!isSurfaceAllowed(wordData, targetText, state.readingProfile)) return;
     const toggle = document.createElement('button');
     toggle.className = 'plural-toggle';
-    const isPlural = wordData.agreement === '3rd-plural';
     toggle.textContent = isPlural ? 'PL' : 'SG';
     toggle.title = isPlural ? 'Switch to singular' : 'Switch to plural';
     toggle.addEventListener('mousedown', ev => ev.stopPropagation());
@@ -1363,7 +1371,19 @@ function createWordBlockEl(wordData, railId) {
     });
     el.appendChild(toggle);
   }
-  return el;
+}
+
+function removeWordFromRail(wordData, railId) {
+  const rail = getRailById(railId);
+  if (!rail || rail.isLocked) return;
+  const index = rail.words.findIndex(word => word.id === wordData.id);
+  if (index === -1) return;
+  rail.words.splice(index, 1);
+  document.getElementById(`block-${wordData.id}`)?.remove();
+  updateRailAnalysis(rail);
+  recalcRailScore(rail);
+  layoutRailAnimated(rail);
+  checkPeriodAvailability();
 }
 
 function getBlockText(el) { return el.querySelector('.block-text'); }
@@ -1509,9 +1529,12 @@ function toggleNounNumber(wordData, railId) {
   const isCurrentlyPlural = wordData.agreement === '3rd-plural';
   const newAgreement = isCurrentlyPlural ? '3rd-singular' : '3rd-plural';
   const newText = isCurrentlyPlural ? wordData.singular : wordData.plural;
+  if (!isSurfaceAllowed(wordData, newText, state.readingProfile)) {
+    showSentenceStatus(`“${newText}” is outside this reading profile.`);
+    return;
+  }
 
   wordData.agreement = newAgreement;
-  wordData.text = newText;
   wordData.displayText = newText;
 
   // Update the block visually with morph flash
@@ -1519,11 +1542,7 @@ function toggleNounNumber(wordData, railId) {
   if (el) {
     el.classList.add('morphing');
     // Update toggle label
-    const toggle = el.querySelector('.plural-toggle');
-    if (toggle) {
-      toggle.textContent = newAgreement === '3rd-plural' ? 'PL' : 'SG';
-      toggle.title = newAgreement === '3rd-plural' ? 'Switch to singular' : 'Switch to plural';
-    }
+      addPluralToggle(el, wordData, railId);
     setTimeout(() => {
       const span = el.querySelector('.block-text');
       if (span) span.textContent = newText;
@@ -1536,6 +1555,8 @@ function toggleNounNumber(wordData, railId) {
 
   // Re-derive rail agreement from this noun (noun drives the bus)
   updateRailAnalysis(rail);
+  recalcRailScore(rail);
+  checkPeriodAvailability();
 }
 
 // ═══════════════════════════════════════════════════
@@ -1543,24 +1564,19 @@ function toggleNounNumber(wordData, railId) {
 // ═══════════════════════════════════════════════════
 
 function updateVerbAgreement(rail) {
-  function findNearestNounAgreement(words, startIdx, step) {
-    for (let i = startIdx; i >= 0 && i < words.length; i += step) {
-      if (isNounType(words[i].subtype)) return words[i].agreement;
-    }
-    return null;
-  }
-
-  rail.words.forEach((w, verbIdx) => {
+  const words = [...rail.words].sort((a, b) => (a.x ?? RAIL_PADDING) - (b.x ?? RAIL_PADDING));
+  words.forEach((w, verbIdx) => {
     if (!isVerbType(w.subtype) || !w.forms) return;
-
-    // Find nearest noun/pronoun to the left, then right, then fall back to rail agreement
-    const agreement =
-      findNearestNounAgreement(rail.words, verbIdx - 1, -1) ||
-      findNearestNounAgreement(rail.words, verbIdx + 1,  1) ||
-      rail.subjectAgreement;
+    let clauseStart = 0;
+    for (let i = verbIdx - 1; i >= 0; i--) {
+      if (words[i].subtype === 'conjunction') { clauseStart = i + 1; break; }
+    }
+    const subject = words.slice(clauseStart, verbIdx).find(token => isNounType(token.subtype));
+    const agreement = subject && subject.agreement;
     if (!agreement) return;
-
-    const newForm = w.forms[agreement] || w.forms['default'] || w.text;
+    const newForm = requiredVerbForm(w, agreement);
+    w.agreementBlocked = !isSurfaceAllowed(w, newForm, state.readingProfile);
+    if (w.agreementBlocked) return;
     if (newForm !== w.displayText) {
       w.displayText = newForm;
       const el = document.getElementById(`block-${w.id}`);
@@ -1580,34 +1596,19 @@ function updateVerbAgreement(rail) {
 //  PERIOD / PUNCT AVAILABILITY
 // ═══════════════════════════════════════════════════
 
-// A rail is "complete" (ready for terminal punctuation) if it has a noun+verb,
-// ALL words form a single magnetically-snapped cluster, and article rules are satisfied.
+// Completion belongs to the explicit sentence grammar, not the magnetic layer.
 function isRailComplete(rail) {
-  if (rail.isLocked || !rail.hasNoun || !rail.hasVerb) return false;
-  // All words must be part of one linked cluster — no detached words allowed
-  const clusters = getSnapClusters(rail);
-  if (clusters.length !== 1) return false;
-  const words = clusters[0];
-  for (let i = 0; i < words.length - 1; i++) {
-    if (!getConnectionResult(words[i], words[i + 1]).allowed) {
-      return false; // Sequence is physically touching but grammatically invalid
-    }
-  }
-  const subjectNoun = rail.words.find(w => w.subtype === 'noun');
-  if (subjectNoun && subjectNoun.countable && subjectNoun.agreement === '3rd-singular') {
-    const nounIdx = rail.words.findIndex(w => w.id === subjectNoun.id);
-    const hasArticle = rail.words.slice(0, nounIdx).some(w => w.subtype === 'article' || w.subtype === 'determiner');
-    if (!hasArticle) return false;
-  }
-  return true;
+  return getRailStructure(rail).ok;
 }
 
 function checkPeriodAvailability() {
   const anyComplete = state.rails.some(r => isRailComplete(r));
-  document.querySelectorAll('.punct-mark[data-punct="."]').forEach(el => {
-    el.classList.remove('locked-mark');
-    if (anyComplete) el.classList.add('dancing');
-    else             el.classList.remove('dancing');
+  document.querySelectorAll('.punct-mark').forEach(el => {
+    const punct = el.dataset.punct;
+    const isUnlocked = (DEV_MODE || state.unlockedPunct.has(punct)) && isTerminalPunctuation(punct);
+    el.classList.toggle('locked-mark', !isUnlocked);
+    el.disabled = !isUnlocked;
+    el.classList.toggle('dancing', isUnlocked && anyComplete);
   });
 }
 
@@ -1639,27 +1640,121 @@ function buildBankTabs() {
 function buildBankWords() {
   const wordsEl = document.getElementById('bankWords');
   wordsEl.innerHTML = '';
-  let wordsToRender = WORD_BANK[state.activeTab] || [];
-  if (state.level === 1) {
-    if (state.activeTab === 'nouns') {
-      wordsToRender = [{ text: "I", subtype: "pronoun", agreement: "1st-singular" }];
-    } else if (state.activeTab === 'verbs') {
-      wordsToRender = WORD_BANK.verbs.filter(v => v.text === 'play');
-    } else {
-      wordsToRender = [];
-    }
-  }
+  const wordsToRender = getVisibleWords(state.activeTab, state.readingProfile);
 
   wordsToRender.forEach(wordData => {
-    const el = document.createElement('div');
+    const wrap = document.createElement('div');
+    wrap.className = 'bank-word-wrap';
+    const el = document.createElement('button');
+    el.type = 'button';
     el.className = `bank-word ${getTypeClass(wordData.subtype)}`;
     if (isLightText(wordData.subtype)) el.classList.add('light-text');
+    if (isHelperSurface(wordData, wordData.text)) el.classList.add('helper-word');
     el.textContent = wordData.text;
     el.dataset.subtype = wordData.subtype;
+    el.setAttribute('aria-label', `${wordData.text}, ${TAB_LABELS[state.activeTab]}. Drag it or press Enter to place it.`);
     el.addEventListener('mousedown', e => startDragFromBank(e, wordData, el));
     el.addEventListener('touchstart', e => startDragFromBank(e, wordData, el), { passive: false });
-    wordsEl.appendChild(el);
+    el.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      placeWordFromKeyboard(wordData);
+    });
+    const hear = document.createElement('button');
+    hear.type = 'button';
+    hear.className = 'hear-word';
+    hear.textContent = '🔊';
+    hear.title = `Hear ${wordData.text}`;
+    hear.setAttribute('aria-label', `Hear the word ${wordData.text}`);
+    hear.addEventListener('click', event => { event.stopPropagation(); speakText(wordData.text); });
+    wrap.append(el, hear);
+    wordsEl.appendChild(wrap);
   });
+}
+
+function buildReadingProfileControl() {
+  const select = document.getElementById('readingProfile');
+  select.innerHTML = '';
+  Object.values(READING_PROFILES).forEach(profile => {
+    const option = document.createElement('option');
+    option.value = profile.id;
+    option.textContent = profile.label;
+    option.title = profile.description;
+    option.selected = profile.id === state.readingProfile;
+    select.appendChild(option);
+  });
+  select.onchange = () => {
+    state.readingProfile = select.value;
+    buildBankWords();
+    state.rails.forEach(rail => {
+      updateRailAnalysis(rail);
+      rail.words.forEach(word => {
+        const el = document.getElementById(`block-${word.id}`);
+        if (el) addPluralToggle(el, word, rail.id);
+      });
+      recalcRailScore(rail);
+    });
+    checkPeriodAvailability();
+    saveState();
+  };
+}
+
+function speakText(text) {
+  if (!('speechSynthesis' in window)) {
+    showSentenceStatus('Speech is not available in this browser.');
+    return;
+  }
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 0.78;
+  window.speechSynthesis.speak(utterance);
+}
+
+function placeWordFromKeyboard(wordData) {
+  clearInactivityTimer();
+  let rail = [...state.rails].reverse().find(item => !item.isLocked && item.words.length > 0);
+  if (!rail) rail = state.rails.find(item => !item.isLocked && item.words.length === 0) || createRail();
+  const token = cloneToken(wordData);
+  token.lexicalId = wordData.id;
+  token.id = state.idCounter++;
+  token.displayText = wordData.text;
+  const last = [...rail.words].sort((a, b) => (a.x ?? RAIL_PADDING) - (b.x ?? RAIL_PADDING)).at(-1);
+  if (last) {
+    const lastEl = document.getElementById(`block-${last.id}`);
+    const lastWidth = lastEl?.offsetWidth || estimateBlockWidth(last.displayText || last.text);
+    token.x = (last.x ?? RAIL_PADDING) + lastWidth + (getConnectionResult(last, token).allowed ? BLOCK_GAP : KICK_DISTANCE_PX);
+  } else token.x = RAIL_PADDING;
+  rail.words.push(token);
+  const railEl = document.getElementById(`rail-${rail.id}`);
+  const el = createWordBlockEl(token, rail.id);
+  el.classList.add('snapped');
+  el.dataset.railId = rail.id;
+  railEl.appendChild(el);
+  bindRailDragEvents(el, token);
+  updateRailAnalysis(rail);
+  recalcRailScore(rail);
+  layoutRailAnimated(rail);
+  advanceTutorialForWord(token);
+  if (rail.hasNoun && rail.hasVerb) setTimeout(() => startJitter(rail.id), SPRING_DURATION + 50);
+  ensureEmptyRail();
+  checkPeriodAvailability();
+  resetInactivityTimer();
+}
+
+function advanceTutorialForWord(wordData) {
+  if (state.tutorialPhase === 'noun' && isNounType(wordData.subtype)) {
+    state.tutorialPhase = 'verb';
+    state.activeTab = 'verbs';
+    buildBankTabs();
+    buildBankWords();
+    setTimeout(wiggleVerbBank, 200);
+    saveState();
+  } else if (state.tutorialPhase === 'verb' && isVerbType(wordData.subtype)) {
+    state.tutorialPhase = null;
+    buildBankTabs();
+    buildBankWords();
+    saveState();
+  }
 }
 
 // ═══════════════════════════════════════════════════
@@ -1670,20 +1765,49 @@ function buildPunctTray() {
   const tray = document.getElementById('punctTray');
   while (tray.children.length > 1) tray.removeChild(tray.lastChild);
   ALL_PUNCT.forEach(p => {
-    const el = document.createElement('div');
+    const el = document.createElement('button');
+    el.type = 'button';
     el.className = 'punct-mark';
     el.dataset.punct = p;
     el.textContent = p;
     el.title = getPunctName(p);
-    const isUnlocked = DEV_MODE || state.unlockedPunct.has(p);
+    const isUnlocked = (DEV_MODE || state.unlockedPunct.has(p)) && isTerminalPunctuation(p);
     if (!isUnlocked) el.classList.add('locked-mark');
+    el.disabled = !isUnlocked;
+    el.setAttribute('aria-label', `${getPunctName(p)}${isUnlocked ? '' : ', locked'}`);
     if (isUnlocked) {
       el.addEventListener('mousedown', e => startDragPunct(e, p, el));
       el.addEventListener('touchstart', e => startDragPunct(e, p, el), { passive: false });
+      el.addEventListener('keydown', e => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        finishFirstCompleteSentence(p);
+      });
     }
     tray.appendChild(el);
   });
   checkPeriodAvailability();
+}
+
+function isTerminalPunctuation(mark) { return mark === '.' || mark === '!' || mark === '?'; }
+
+function finishFirstCompleteSentence(punct) {
+  const rail = state.rails.find(item => isRailComplete(item));
+  if (!rail) {
+    const candidate = state.rails.find(item => !item.isLocked && item.words.length);
+    const analysis = candidate ? getRailStructure(candidate) : null;
+    showSentenceStatus(analysis?.message || 'Build one complete connected sentence first.');
+    return;
+  }
+  const data = { id: state.idCounter++, text: punct, displayText: punct, subtype: 'punctuation' };
+  const el = document.createElement('div');
+  el.className = 'word-block type-punctuation';
+  el.id = `block-${data.id}`;
+  const span = document.createElement('span');
+  span.className = 'block-text';
+  span.textContent = punct;
+  el.appendChild(span);
+  lockSentence(rail, data, el);
 }
 
 function getPunctName(p) {
@@ -1702,11 +1826,17 @@ function startDragFromBank(e, wordData, sourceEl) {
 
   const pos  = getEventPos(e);
   const rect = sourceEl.getBoundingClientRect();
-  const newWordData = { ...wordData, id: state.idCounter++, displayText: wordData.text };
+  const newWordData = cloneToken(wordData);
+  newWordData.lexicalId = wordData.id;
+  newWordData.id = state.idCounter++;
+  newWordData.displayText = wordData.text;
   const el = document.createElement('div');
   el.className = `word-block ${getTypeClass(wordData.subtype)} dragging`;
   if (isLightText(wordData.subtype)) el.classList.add('light-text');
   el.id = `block-${newWordData.id}`;
+  el.setAttribute('role', 'button');
+  el.setAttribute('tabindex', '0');
+  el.setAttribute('aria-label', `${newWordData.displayText}, sentence tile. Press Delete to remove.`);
   el.style.left = `${rect.left}px`;
   el.style.top  = `${rect.top}px`;
   el.style.position = 'fixed';
@@ -2002,19 +2132,7 @@ function snapToRail(rail, result) {
   updateRailAnalysis(rail);
   recalcRailScore(rail);
 
-  if (state.tutorialPhase === 'noun' && isNounType(wordData.subtype)) {
-    state.tutorialPhase = 'verb';
-    state.activeTab = 'verbs';
-    buildBankTabs();
-    buildBankWords();
-    setTimeout(wiggleVerbBank, 200);
-    saveState();
-  } else if (state.tutorialPhase === 'verb' && isVerbType(wordData.subtype)) {
-    state.tutorialPhase = null;
-    buildBankTabs();
-    buildBankWords();
-    saveState();
-  }
+  advanceTutorialForWord(wordData);
 
   // Compute the dropped word's x position on the rail
   const railElForPos = document.getElementById(`rail-${rail.id}`);
@@ -2051,8 +2169,8 @@ function snapToRail(rail, result) {
   el.dataset.railId = rail.id;
   railEl.appendChild(el);
 
-  el.addEventListener('mousedown', ev => { if (!rail.isLocked) startDragFromRail(ev, wordData, rail.id); });
-  el.addEventListener('touchstart', ev => { if (!rail.isLocked) startDragFromRail(ev, wordData, rail.id); }, { passive: false });
+  bindRailDragEvents(el, wordData);
+  addPluralToggle(el, wordData, rail.id);
 
   layoutRailAnimated(rail);
 
@@ -2165,6 +2283,8 @@ function lockSentence(rail, punctData, punctElOverride) {
   // punctData may be a wordData object (new physical-block path) or a bare string (legacy checkPunctMagnetism path)
   const punctChar = typeof punctData === 'string' ? punctData : punctData.displayText;
   const sentenceText = rawWords.join(' ') + punctChar;
+  const savedTokens = rail.words.map(serializeToken);
+  const savedProfile = state.readingProfile;
   const railEl = document.getElementById(`rail-${rail.id}`);
 
   // Attach the period to the rail, positioned at the text baseline
@@ -2227,7 +2347,7 @@ function lockSentence(rail, punctData, punctElOverride) {
 
         // Clean up and move to vault after 750ms
         setTimeout(() => {
-          addToVault(sentenceText, xpEarned);
+          addToVault(sentenceText, xpEarned, savedTokens, punctChar, savedProfile);
           const idx = state.rails.findIndex(r => r.id === rail.id);
           if (idx !== -1) { state.rails.splice(idx, 1); railEl.remove(); renderRails(); }
           ensureEmptyRail();
@@ -2351,18 +2471,25 @@ function onDragEnd(e) {
       });
     }
 
+    if (wordData.subtype === 'punctuation') {
+      if (isTerminalPunctuation(wordData.text) && insertIndex === targetRail.words.length && isRailComplete(targetRail)) {
+        lockSentence(targetRail, wordData.text, el);
+      } else {
+        const analysis = getRailStructure(targetRail);
+        showSentenceStatus(analysis.message || 'Punctuation can finish only a complete connected sentence.');
+        el.remove();
+        ensureEmptyRail();
+        resetInactivityTimer();
+      }
+      return;
+    }
+
     // Check validity at chosen position
     const leftNeighbor  = insertIndex > 0 ? targetRail.words[insertIndex - 1] : null;
     const rightNeighbor = insertIndex < targetRail.words.length ? targetRail.words[insertIndex] : null;
     const leftOk  = !leftNeighbor  || getConnectionResult(leftNeighbor,  wordData).allowed;
     const rightOk = !rightNeighbor || getConnectionResult(wordData, rightNeighbor).allowed;
     const isValid = leftOk && rightOk;
-
-    const isReadyToLock = wordData.subtype === 'punctuation' && insertIndex === targetRail.words.length && isRailComplete(targetRail);
-    if (isReadyToLock) {
-      lockSentence(targetRail, wordData.text, el);
-      return;
-    }
 
     targetRail.words.splice(insertIndex, 0, wordData);
     updateRailAnalysis(targetRail); recalcRailScore(targetRail);
@@ -2372,17 +2499,12 @@ function onDragEnd(e) {
     el.classList.remove('dragging'); el.classList.add('snapped');
     el.dataset.railId = targetRail.id;
     targetRailEl.appendChild(el);
-    el.addEventListener('mousedown', ev => { if (!targetRail.isLocked) startDragFromRail(ev, wordData, targetRail.id); });
-    el.addEventListener('touchstart', ev => { if (!targetRail.isLocked) startDragFromRail(ev, wordData, targetRail.id); }, { passive: false });
+    bindRailDragEvents(el, wordData);
+    addPluralToggle(el, wordData, targetRail.id);
     // Update capitalization for all words now that order may have changed
     targetRail.words.forEach((w, idx) => applyAutoCapitalize(targetRail, w, idx));
 
-    if (state.tutorialPhase === 'noun' && isNounType(wordData.subtype)) {
-      state.tutorialPhase = 'verb'; state.activeTab = 'verbs';
-      buildBankTabs(); buildBankWords(); setTimeout(wiggleVerbBank, 200); saveState();
-    } else if (state.tutorialPhase === 'verb' && isVerbType(wordData.subtype)) {
-      state.tutorialPhase = null; buildBankTabs(); buildBankWords(); saveState();
-    }
+    advanceTutorialForWord(wordData);
 
     if (!isValid) {
       // Shake then magnetically kick sideways ~1 card-width from the bad neighbor
@@ -2410,8 +2532,7 @@ function onDragEnd(e) {
       el.style.position = 'absolute'; el.style.zIndex = '10';
       el.classList.remove('dragging'); el.classList.add('snapped');
       srcRailEl.appendChild(el);
-      el.addEventListener('mousedown', ev => { if (!sourceRail.isLocked) startDragFromRail(ev, wordData, sourceRailId); });
-      el.addEventListener('touchstart', ev => { if (!sourceRail.isLocked) startDragFromRail(ev, wordData, sourceRailId); }, { passive: false });
+      bindRailDragEvents(el, wordData);
       layoutRailAnimated(sourceRail);
       if (sourceRail.hasNoun && sourceRail.hasVerb) { setTimeout(() => startJitter(sourceRailId), SPRING_DURATION + 50); checkPeriodAvailability(); }
       ensureEmptyRail(); resetInactivityTimer(); return;
@@ -2428,45 +2549,105 @@ function onDragEnd(e) {
 //  VAULT
 // ═══════════════════════════════════════════════════
 
-function addToVault(text, xp) {
-  const entry = { text, xp, timestamp: Date.now() };
+function createVaultEntryElement(entry, isNew = false) {
+  const row = document.createElement('div');
+  row.className = 'vault-entry-row';
+
+  const entryButton = document.createElement('button');
+  entryButton.type = 'button';
+  entryButton.className = `vault-entry vault-entry-text${isNew ? ' new' : ''}`;
+  entryButton.setAttribute('aria-label', `Return “${entry.text}” to the sentence rail`);
+  const sentence = document.createElement('div');
+  sentence.textContent = entry.text;
+  const points = document.createElement('div');
+  points.className = 'vault-entry-xp';
+  points.textContent = `+${entry.xp} pts`;
+  entryButton.append(sentence, points);
+  entryButton.addEventListener('click', () => pullFromVault(entry, row));
+
+  const hear = document.createElement('button');
+  hear.type = 'button';
+  hear.className = 'vault-hear';
+  hear.textContent = '🔊';
+  hear.setAttribute('aria-label', `Hear the sentence ${entry.text}`);
+  hear.addEventListener('click', () => speakText(entry.text));
+  row.append(entryButton, hear);
+  return row;
+}
+
+function updateVaultCount() {
+  document.getElementById('vaultCount').textContent = `${state.vaultSentences.length} sentence${state.vaultSentences.length !== 1 ? 's' : ''}`;
+}
+
+function renderVault() {
+  const vaultEl = document.getElementById('vaultSentences');
+  vaultEl.innerHTML = '';
+  if (state.vaultSentences.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'vault-empty';
+    empty.innerHTML = 'Your sentences will collect here.<br>Build something.';
+    vaultEl.appendChild(empty);
+  } else {
+    state.vaultSentences.forEach(entry => vaultEl.appendChild(createVaultEntryElement(entry)));
+  }
+  updateVaultCount();
+}
+
+function addToVault(text, xp, tokens, punctuation, readingProfile) {
+  const entry = {
+    version: 2,
+    text,
+    xp,
+    timestamp: Date.now(),
+    tokens,
+    punctuation,
+    readingProfile,
+  };
   state.vaultSentences.unshift(entry);
   const vaultEl = document.getElementById('vaultSentences');
   const emptyEl = vaultEl.querySelector('.vault-empty');
   if (emptyEl) emptyEl.remove();
-  const entryEl = document.createElement('div');
-  entryEl.className = 'vault-entry new';
-  entryEl.innerHTML = `<div>${text}</div><div class="vault-entry-xp">+${xp} pts</div>`;
-  entryEl.addEventListener('click', () => pullFromVault(entry, entryEl));
-  vaultEl.insertBefore(entryEl, vaultEl.firstChild);
-  document.getElementById('vaultCount').textContent = `${state.vaultSentences.length} sentence${state.vaultSentences.length !== 1 ? 's' : ''}`;
+  vaultEl.insertBefore(createVaultEntryElement(entry, true), vaultEl.firstChild);
+  updateVaultCount();
 }
 
 function pullFromVault(entry, entryEl) {
-  const text = entry.text;
-  const lastChar = text[text.length - 1];
-  const terminalPunct = ['.','!','?'].includes(lastChar) ? lastChar : null;
-  const cleanText = terminalPunct ? text.slice(0, -1) : text;
-  const words = cleanText.split(' ');
-  const rail  = createRail();
+  const migrated = Array.isArray(entry.tokens)
+    ? { tokens: entry.tokens.map(restoreToken).filter(Boolean), hasUnknown: false }
+    : migrateLegacyText(entry.text || '');
+  if (migrated.tokens.length === 0) {
+    showSentenceStatus('This saved sentence has no words to restore.');
+    return;
+  }
+
+  const rail = state.rails.find(item => !item.isLocked && item.words.length === 0) || createRail();
   const railEl = document.getElementById(`rail-${rail.id}`);
-  words.forEach(word => {
-    const wordData = { id: state.idCounter++, text: word, displayText: word, subtype: 'noun' };
+  let nextX = RAIL_PADDING;
+  migrated.tokens.forEach(restored => {
+    const wordData = { ...restored };
+    wordData.lexicalId = restored.lexicalId || (typeof restored.id === 'string' ? restored.id : null);
+    wordData.id = state.idCounter++;
+    wordData.x = nextX;
     rail.words.push(wordData);
     const el = createWordBlockEl(wordData, rail.id);
-    el.style.opacity = '0.65';
     el.style.position = 'absolute';
+    el.classList.add('snapped');
     railEl.appendChild(el);
-    el.addEventListener('mousedown', ev => { if (!rail.isLocked) startDragFromRail(ev, wordData, rail.id); });
-    el.addEventListener('touchstart', ev => { if (!rail.isLocked) startDragFromRail(ev, wordData, rail.id); }, { passive: false });
+    nextX += (el.offsetWidth || estimateBlockWidth(wordData.displayText || wordData.text)) + BLOCK_GAP;
   });
   updateRailAnalysis(rail);
-  setTimeout(() => layoutRail(rail), 50);
-  state.vaultSentences = state.vaultSentences.filter(e => e.timestamp !== entry.timestamp);
+  recalcRailScore(rail);
+  layoutRail(rail);
+  state.vaultSentences = state.vaultSentences.filter(saved => saved !== entry);
   entryEl.remove();
-  document.getElementById('vaultCount').textContent = `${state.vaultSentences.length} sentence${state.vaultSentences.length !== 1 ? 's' : ''}`;
-  if (state.vaultSentences.length === 0) document.getElementById('vaultSentences').innerHTML = '<div class="vault-empty">Your sentences will collect here.<br>Build something.</div>';
-  startJitter(rail.id);
+  if (state.vaultSentences.length === 0) renderVault();
+  else updateVaultCount();
+  if (migrated.hasUnknown) {
+    showSentenceStatus('Some legacy words were restored without guessed grammar. Replace the gray tiles to complete this sentence.');
+  }
+  if (rail.hasNoun && rail.hasVerb) startJitter(rail.id);
+  ensureEmptyRail();
+  checkPeriodAvailability();
   saveState();
 }
 
@@ -2501,8 +2682,8 @@ function updateXPBar() {
   // Remove old hashmarks
   stripTrack.querySelectorAll('.pts-hashmark').forEach(h => h.remove());
 
-  // Fixed 0–50 pt scale
-  const MAX_VISIBLE_PTS = 50;
+  // Show the whole declared progression so later unlocks are not hidden.
+  const MAX_VISIBLE_PTS = LEVELS[LEVELS.length - 1].xpRequired;
   const pct = Math.min(state.xp / MAX_VISIBLE_PTS, 1);
 
   // Render a hashmark for every level milestone that falls within the visible scale
@@ -2539,6 +2720,8 @@ function checkLevelUp() {
   state.level = next.level;
   applyLevelUnlocks(state.level);
   buildBankTabs(); buildBankWords(); buildPunctTray();
+  updateXPBar();
+  saveState();
 
   // Record newly unlocked items for the happy-twirl celebration after overlay dismiss
   pendingUnlockAnimation.types = new Set([...state.unlockedTypes].filter(t => !prevTypes.has(t)));
@@ -2664,19 +2847,15 @@ function coldOpen() {
 // ═══════════════════════════════════════════════════
 
 function init() {
-  loadState(); buildBankTabs(); buildBankWords(); buildPunctTray(); coldOpen(); updateXPBar(); resetInactivityTimer();
-  if (state.vaultSentences.length > 0) {
-    const vaultEl = document.getElementById('vaultSentences');
-    vaultEl.innerHTML = '';
-    state.vaultSentences.forEach(entry => {
-      const entryEl = document.createElement('div');
-      entryEl.className = 'vault-entry';
-      entryEl.innerHTML = `<div>${entry.text}</div><div class="vault-entry-xp">+${entry.xp} pts</div>`;
-      entryEl.addEventListener('click', () => pullFromVault(entry, entryEl));
-      vaultEl.appendChild(entryEl);
-    });
-    document.getElementById('vaultCount').textContent = `${state.vaultSentences.length} sentence${state.vaultSentences.length !== 1 ? 's' : ''}`;
-  }
+  loadState();
+  buildReadingProfileControl();
+  buildBankTabs();
+  buildBankWords();
+  buildPunctTray();
+  coldOpen();
+  renderVault();
+  updateXPBar();
+  resetInactivityTimer();
 }
 
 window.addEventListener('load', init);
